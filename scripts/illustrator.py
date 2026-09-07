@@ -40,25 +40,75 @@ API_URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-v4-flash"
 ALLOWED_MODELS = ("deepseek-v4-flash", "deepseek-v4-pro")
 STYLE = "minimalist dark pencil drawing, Pushkin manuscript margin sketch style, solitary and poetic vibe, clean line art, monochrome on dark paper"
-FINAL_STYLE = "minimalist dark pencil sketch, Pushkin manuscript margin drawing style, clean monochrome line art, dark paper texture"
-POLLINATIONS_STYLE_SUFFIX = ", strict academic drawing, heavy charcoal sketch, raw graphite pencil, highly detailed crosshatching, classic book illustration, monochromatic black and white. ABSOLUTELY NO anime, NO manga, NO comic, NO smooth digital rendering, NO cartoon."
-DIRECTOR_SYSTEM_PROMPT = "Ты — арт-директор книжного издания. Прочитай текст и выдели 1-2 главных ключевых ВЕЩЕСТВЕННЫХ предмета или сцену (например: сосновый лес, костер, старый рюкзак, мотоцикл на дороге). Напиши короткий промпт на английском (до 15 слов) для генерации лаконичного наброска карандашом/тушью."
+# Style comes FIRST and is kept short on purpose: earlier tokens carry more
+# weight in CLIP-style text conditioning, and a long style block tacked onto
+# the end of a long prompt risks being clipped by the ~77-token CLIP limit,
+# silently dropping exactly the words that keep the output monochrome/pencil.
+STYLE_PREFIX = (
+    "Monochrome graphite pencil sketch, black ink crosshatching, 19th century "
+    "engraving illustration, aged paper, desaturated, depicting:"
+)
+DIRECTOR_SYSTEM_PROMPT = (
+    "Ты — арт-директор книжного издания. Прочитай текст и выдели 1-2 главных "
+    "ключевых ВЕЩЕСТВЕННЫХ предмета или пейзаж (например: сосновый лес, костер, "
+    "старый рюкзак, мотоцикл на дороге). СТРОГО ЗАПРЕЩЕНО: лица людей, портреты, "
+    "персонажи крупным планом, любые изображения человеческой внешности — только "
+    "предметы, пейзаж или сцена издалека без различимых лиц. Напиши короткий "
+    "промпт на английском (до 15 слов) для генерации лаконичного наброска "
+    "карандашом/тушью."
+)
 
 
-def generate_art_prompt(text_content: str) -> str:
-    """Ask DeepSeek via BotHub for a short, text-grounded visual scene."""
+_PERSON_WORDS = (
+    "portrait", "face", "man", "woman", "girl", "boy", "person", "people",
+    "character", "figure", "child", "lady", "gentleman", "eyes", "expression",
+)
+
+
+def _looks_like_a_person(scene: str) -> bool:
+    """Cheap keyword check: does the scene describe a person/portrait?
+
+    Skips matches that are explicitly negated ("no people", "without a man"),
+    since a naive substring/word match would otherwise flag "no people" as
+    containing "people" — the same negation-blindness bug we fixed in the
+    Pollinations prompt itself.
+    """
+    lowered = scene.lower()
+    for word in _PERSON_WORDS:
+        for match in re.finditer(rf"\b{re.escape(word)}\b", lowered):
+            preceding = lowered[: match.start()]
+            if re.search(r"\b(no|not|without|zero|any)\s+(a\s+|an\s+)?$", preceding):
+                continue  # negated - actually safe
+            return True
+    return False
+
+
+def generate_art_prompt(text_content: str, _retry: bool = False) -> str:
+    """Ask DeepSeek via BotHub for a short, text-grounded visual scene.
+
+    If the returned scene reads like a portrait/person, retry once with a
+    stronger instruction rather than silently forwarding it to Pollinations —
+    scenes centered on a face are what pushed earlier generations into
+    anime/character-art territory.
+    """
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
         raise RuntimeError("DEEPSEEK_API_KEY is not set in the local .env file.")
     if MODEL not in ALLOWED_MODELS:
         raise RuntimeError(f"Unsupported DeepSeek model: {MODEL}")
     truncated_text = text_content[:1200]
+    system_prompt = DIRECTOR_SYSTEM_PROMPT
+    if _retry:
+        system_prompt += (
+            " ПОВТОР: предыдущий ответ содержал лицо/портрет человека, это "
+            "недопустимо. Выбери ТОЛЬКО неодушевлённый предмет или пейзаж."
+        )
     payload = {
         "model": MODEL,
         "temperature": 0.2,
         "max_tokens": 2048,
         "messages": [
-            {"role": "system", "content": DIRECTOR_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": truncated_text},
         ],
     }
@@ -82,19 +132,51 @@ def generate_art_prompt(text_content: str) -> str:
     if not scene:
         print(f"Ошибка DeepSeek: {response.status_code} - {response.text}")
         raise RuntimeError("DeepSeek returned an empty art prompt.")
+    if _looks_like_a_person(scene):
+        if not _retry:
+            print(f"DeepSeek предложил портрет ('{scene}'), переспрашиваю без людей...")
+            return generate_art_prompt(text_content, _retry=True)
+        raise RuntimeError(
+            f"DeepSeek дважды выбрал сцену с человеком ('{scene}') — "
+            "пропускаю эту работу, чтобы не отправлять портрет в Pollinations."
+        )
     return scene
 
 
 def build_prompt(work: dict) -> str:
-    """Build the final Pollinations prompt from DeepSeek's art direction."""
+    """Build the final Pollinations prompt: style first, scene last.
+
+    Keeping the whole thing short and front-loading the style words means the
+    style survives even if the model's text encoder truncates long prompts,
+    and it dominates the token weighting instead of getting diluted at the end.
+    """
     scene = generate_art_prompt(work.get("text", ""))
-    return f"{scene}, {FINAL_STYLE}"
+    return f"{STYLE_PREFIX} {scene}"
 
 
-def pollinations_url(prompt: str, width: int = 1024, height: int = 768) -> str:
-    """Return a deterministic Pollinations.ai image URL for a prompt."""
+POLLINATIONS_MODEL = "flux"  # explicit: was previously left to Pollinations' shifting default
+
+
+def pollinations_url(
+    prompt: str,
+    width: int = 1024,
+    height: int = 768,
+    seed: int | None = None,
+) -> str:
+    """Return a Pollinations.ai image URL for a prompt.
+
+    model= is pinned explicitly rather than left to the service default, since
+    that default can silently change and drift the style. seed= is optional and
+    only useful when you want a reproducible image for A/B-testing prompt wording.
+    """
     encoded_prompt = quote(prompt, safe="")
-    return f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
+    url = (
+        f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        f"?width={width}&height={height}&nologo=true&model={POLLINATIONS_MODEL}"
+    )
+    if seed is not None:
+        url += f"&seed={seed}"
+    return url
 
 
 class PollinationsError(RuntimeError):
@@ -103,8 +185,10 @@ class PollinationsError(RuntimeError):
 
 def fetch_image(prompt: str, output_path: Path, timeout: int = 90) -> tuple[str, Path]:
     """Fetch a generated PNG, retrying throttled or timed-out requests."""
-    final_prompt = prompt.strip() + POLLINATIONS_STYLE_SUFFIX
+    final_prompt = prompt.strip()
     url = pollinations_url(final_prompt)
+    print(f"Итоговый промпт ({len(final_prompt.split())} слов): {final_prompt}")
+    print(f"Полный URL: {url}")
     for attempt in range(1, 4):
         try:
             response = DIRECT_SESSION.get(
@@ -213,7 +297,7 @@ def main() -> None:
 
         try:
             prompt = build_prompt(work)
-            scene = prompt.removesuffix(f", {FINAL_STYLE}")
+            scene = prompt.removeprefix(f"{STYLE_PREFIX} ")
             print(f"DeepSeek prompt: {scene}")
             output_path = WORKS_DIR / f"{slug}.png"
             url, path = fetch_image(prompt, output_path)

@@ -63,6 +63,11 @@ def group_works(works):
     groups = {}
     for work in works:
         groups.setdefault(work["book"], []).append(work)
+    for book_works in groups.values():
+        for index, work in enumerate(book_works):
+            if "эпилог" in work.get("title", "").lower():
+                book_works.append(book_works.pop(index))
+                break
     return groups
 
 
