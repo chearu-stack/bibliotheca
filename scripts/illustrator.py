@@ -41,7 +41,7 @@ MODEL = "deepseek-v4-flash"
 ALLOWED_MODELS = ("deepseek-v4-flash", "deepseek-v4-pro")
 STYLE = "minimalist dark pencil drawing, Pushkin manuscript margin sketch style, solitary and poetic vibe, clean line art, monochrome on dark paper"
 FINAL_STYLE = "minimalist dark pencil sketch, Pushkin manuscript margin drawing style, clean monochrome line art, dark paper texture"
-POLLINATIONS_STYLE_SUFFIX = "strictly black and white pencil sketch, rough ink illustration, dark fantasy aesthetic, monochromatic"
+POLLINATIONS_STYLE_SUFFIX = ", strict academic drawing, heavy charcoal sketch, raw graphite pencil, highly detailed crosshatching, classic book illustration, monochromatic black and white. ABSOLUTELY NO anime, NO manga, NO comic, NO smooth digital rendering, NO cartoon."
 DIRECTOR_SYSTEM_PROMPT = "Ты — арт-директор книжного издания. Прочитай текст и выдели 1-2 главных ключевых ВЕЩЕСТВЕННЫХ предмета или сцену (например: сосновый лес, костер, старый рюкзак, мотоцикл на дороге). Напиши короткий промпт на английском (до 15 слов) для генерации лаконичного наброска карандашом/тушью."
 
 
@@ -103,7 +103,7 @@ class PollinationsError(RuntimeError):
 
 def fetch_image(prompt: str, output_path: Path, timeout: int = 90) -> tuple[str, Path]:
     """Fetch a generated PNG, retrying throttled or timed-out requests."""
-    final_prompt = prompt.strip() + ", " + POLLINATIONS_STYLE_SUFFIX
+    final_prompt = prompt.strip() + POLLINATIONS_STYLE_SUFFIX
     url = pollinations_url(final_prompt)
     for attempt in range(1, 4):
         try:
