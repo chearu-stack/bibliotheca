@@ -13,9 +13,45 @@ PROSE = "\u041f\u0440\u043e\u0437\u0430"
 ABOUT = "\u041e\u0431 \u0430\u0432\u0442\u043e\u0440\u0435"
 
 
+def generate_vignette(output_path: Path) -> Path:
+    """Write a compact brass ink-style divider SVG and return its path."""
+    source_path = ROOT / "assets" / "images" / "vignette.svg"
+    if source_path.exists() and source_path.resolve() != output_path.resolve():
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, output_path)
+        return output_path
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 32" role="img" aria-label="Декоративный разделитель">
+  <g fill="none" stroke="#C5A059" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 16h54c9 0 15-3 22-9"/>
+    <path d="M228 16h-54c-9 0-15-3-22-9"/>
+    <path d="M20 13c3-3 7-3 10 0s7 3 10 0"/>
+    <path d="M220 13c-3-3-7-3-10 0s-7 3-10 0"/>
+    <path d="M88 7c5 5 9 8 16 9-7 1-11 4-16 9-1-7-4-11-9-14 5-1 8-2 9-4z"/>
+    <path d="M152 7c-5 5-9 8-16 9 7 1 11 4 16 9 1-7 4-11 9-14-5-1-8-2-9-4z"/>
+    <path d="M120 4c-5 5-6 9 0 14 6-5 5-9 0-14z"/>
+    <path d="M120 18c-7-5-12-5-16-1 5 4 10 5 16 1zM120 18c7-5 12-5 16-1-5 4-10 5-16 1z"/>
+  </g>
+  <circle cx="120" cy="18" r="1.7" fill="#C5A059"/>
+</svg>
+'''
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(svg, encoding="utf-8")
+    return output_path
+
+
 def slugify(value: str) -> str:
     value = re.sub(r"[^\w\s-]", "", value, flags=re.UNICODE).strip().lower()
     return re.sub(r"[-\s]+", "-", value) or "untitled"
+
+
+def illustration_markup(work: dict) -> str:
+    """Return an illustration tag when a matching work image exists."""
+    slug = slugify(work.get("title", "untitled"))
+    for extension in (".png", ".jpg", ".jpeg"):
+        source = ROOT / "assets" / "images" / "works" / f"{slug}{extension}"
+        if source.exists():
+            return f'<img src="../../assets/images/works/{slug}{extension}" class="work-illustration" alt="Иллюстрация" loading="lazy">'
+    return ""
 
 
 def load_archive(name: str):
@@ -107,11 +143,22 @@ def write_assets():
   <path d="M20 38h8M36 38h8" stroke="#c5a059" stroke-width="1.5" stroke-linecap="round"/>
 </svg>
 ''', encoding="utf-8")
+    vignette_source = ROOT / "assets" / "images" / "vignette.svg"
+    vignette_target = SITE / "assets" / "images" / "vignette.svg"
+    vignette_target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(vignette_source, vignette_target)
+    works_source = ROOT / "assets" / "images" / "works"
+    works_target = SITE / "assets" / "images" / "works"
+    if works_source.exists():
+        works_target.mkdir(parents=True, exist_ok=True)
+        for image in works_source.iterdir():
+            if image.is_file() and image.suffix.lower() in {".png", ".jpg", ".jpeg"}:
+                shutil.copy2(image, works_target / image.name)
     (SITE / "css" / "site.css").write_text('''@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap");
 :root{--ink:#121316;--surface:#1b1d22;--paper:#e6e4df;--muted:#a9a69e;--brass:#c8a261;--line:rgba(230,228,223,.17);--serif:"Cormorant Garamond",Georgia,serif;--sans:"Montserrat",Arial,sans-serif}*{box-sizing:border-box}body{background:var(--ink);color:var(--paper);font:1.15rem/1.55 var(--serif);margin:0}a{color:inherit;text-decoration:none}.site-header{border-bottom:1px solid var(--line);margin:auto;max-width:76rem;padding:1.25rem clamp(1rem,5vw,4rem)}.top-nav{display:flex;flex-wrap:wrap;gap:1.25rem}.top-nav a,.reader-back,.reader-book,.book-meta,.site-footer,.tab-btn{font:500 .7rem/1.4 var(--sans);letter-spacing:.1em;text-transform:uppercase}.top-nav a{color:var(--muted)}.top-nav a:hover,.top-nav a.active{color:var(--brass)}.hero-block{padding:clamp(4rem,10vw,8rem) 0 3rem}.site-title{font-size:clamp(3rem,9vw,7rem);font-weight:500;line-height:1;letter-spacing:-.05em;margin:0 0 1.5rem}.site-subtitle{color:var(--muted);font-size:clamp(1.25rem,2.5vw,1.7rem);max-width:44rem;margin:0}.main-content{margin:auto;max-width:76rem;padding:0 clamp(1rem,5vw,4rem) 5rem}.hall-tabs{border-bottom:1px solid var(--line);display:flex;gap:1rem;margin-bottom:1.5rem}.tab-btn{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;padding:.9rem 0}.tab-btn.active{border-color:var(--brass);color:var(--brass)}.hall-section{display:block}.hall-section[style*="none"]{display:none}.book-card{background:var(--surface);border:1px solid var(--line);margin:.8rem 0}.book-summary{align-items:center;cursor:pointer;display:flex;gap:1rem;justify-content:space-between;list-style:none;padding:1.1rem 1.25rem}.book-summary::-webkit-details-marker{display:none}.book-name{font-size:1.45rem}.book-meta{color:var(--brass);white-space:nowrap}.work-list{border-top:1px solid var(--line);display:grid;gap:.25rem 1.5rem;grid-template-columns:1fr;margin:0;padding:.75rem 1.25rem .9rem 2.75rem}.work-list li{padding:.35rem 0}.work-list a:hover{color:var(--brass)}.site-footer{border-top:1px solid var(--brass);color:var(--muted);margin:2rem auto 0;max-width:76rem;padding:1.5rem clamp(1rem,5vw,4rem)}.site-footer p{margin:0}.reader-header{align-items:center;display:flex;gap:1.5rem;justify-content:space-between}.reader-content{margin:auto;max-width:52rem;padding:clamp(3rem,8vw,7rem) 1rem}.reader-content h1{font-size:clamp(2.8rem,7vw,5.5rem);line-height:1}.reader-book{color:var(--brass)}.reader-text{font-size:1.3rem;margin-top:3rem}.poem-text{line-height:1.8}.reader-text p{margin:0 0 1.5rem}.publication-footer{border-top:1px solid var(--brass);color:var(--muted);font:.72rem/1.6 var(--sans);margin-top:4rem;padding-top:1rem}.button{border:1px solid var(--brass);display:inline-block;margin-top:2rem;padding:.8rem 1rem}@media(min-width:48rem){.hero-block{padding-left:0;padding-right:0}.work-list{grid-template-columns:repeat(2,minmax(0,1fr))}.reader-content{padding-left:2rem;padding-right:2rem}}
 ''', encoding="utf-8")
     with (SITE / "css" / "site.css").open("a", encoding="utf-8") as css:
-        css.write(".reader-controls{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:space-between;margin-top:2rem}.reader-control{border:1px solid var(--brass);font:500 .7rem/1.4 var(--sans);letter-spacing:.06em;padding:.75rem 1rem}.reader-control.is-disabled{border-color:var(--line);color:var(--muted)}.reader-home{background:var(--surface)}")
+        css.write(".reader-controls{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:space-between;margin-top:2rem}.reader-control{border:1px solid var(--brass);font:500 .7rem/1.4 var(--sans);letter-spacing:.06em;padding:.75rem 1rem}.reader-control.is-disabled{border-color:var(--line);color:var(--muted)}.reader-home{background:var(--surface)}.reader-vignette{margin:3rem auto 2rem;max-width:15rem}.reader-vignette img{display:block;height:auto;max-width:100%;width:100%}.work-illustration{display:block;max-width:100%;height:auto;margin:2rem auto;border-radius:4px;opacity:.9}@media(min-width:48rem){.reader-vignette{max-width:20rem}}")
     (SITE / "js" / "site.js").write_text('''function showHall(name) { const poetry = document.getElementById("poetry-hall"); const prose = document.getElementById("prose-hall"); const poetryButton = document.getElementById("btn-poetry"); const proseButton = document.getElementById("btn-prose"); const showPoetry = name === "poetry"; poetry.style.display = showPoetry ? "block" : "none"; prose.style.display = showPoetry ? "none" : "block"; poetryButton.classList.toggle("active", showPoetry); proseButton.classList.toggle("active", !showPoetry); }
 ''', encoding="utf-8")
 
@@ -133,6 +180,15 @@ def reader_page(work: dict, kind: str, book: str, previous_path: str | None = No
     return f'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(work["title"])} — {BRAND}</title><link rel="stylesheet" href="../../css/site.css"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head>
 <body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1><div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p></footer>{controls}</main><script src="../../js/site.js"></script></body></html>'''
+
+
+def add_reader_decorations(page: str, work: dict) -> str:
+    """Insert the shared vignette and an available work illustration."""
+    illustration = illustration_markup(work)
+    if illustration:
+        page = page.replace('<div class="reader-text">', f'<div class="reader-text">{illustration}', 1)
+    decoration = '<div class="reader-vignette"><img src="../../assets/images/vignette.svg" alt="Декоративный разделитель"></div>'
+    return page.replace('<footer class="publication-footer">', f'{decoration}<footer class="publication-footer">', 1)
 
 
 def build():
@@ -184,7 +240,8 @@ def build():
                 if number < len(book_works):
                     following = book_works[number]
                     next_path = f"{slugify(book)}-{slugify(following['title'])}-{number + 1}.html"
-                path.write_text(reader_page(work, kind, book, previous_path, next_path), encoding="utf-8")
+                page = reader_page(work, kind, book, previous_path, next_path)
+                path.write_text(add_reader_decorations(page, work), encoding="utf-8")
     print(f"Built site: {len(poetry)} poetry works, {len(prose)} prose works.")
 
 
