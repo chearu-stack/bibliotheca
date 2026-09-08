@@ -170,14 +170,19 @@ def write_assets():
     with (SITE / "css" / "site.css").open("a", encoding="utf-8") as css:
         css.write("@media(max-width:768px){.book-summary{flex-wrap:wrap;align-items:flex-start;gap:8px}.book-name{overflow-wrap:break-word;word-break:break-word}.book-meta{white-space:normal}}")
         css.write(".reader-controls{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:space-between;margin-top:2rem}.reader-control{border:1px solid var(--brass);font:500 .7rem/1.4 var(--sans);letter-spacing:.06em;padding:.75rem 1rem}.reader-control.is-disabled{border-color:var(--line);color:var(--muted)}.reader-home{background:var(--surface)}.reader-vignette{margin:3rem auto 2rem;max-width:15rem}.reader-vignette img{display:block;height:auto;max-width:100%;width:100%}.work-illustration{display:block;max-width:100%;height:auto;margin:2rem auto;border-radius:4px;opacity:.9}@media(min-width:48rem){.reader-vignette{max-width:20rem}}")
+        css.write(".poem-text{line-height:1.4;white-space:normal}.poem-stanza{margin:0 0 1.5em}.poem-stanza:last-child{margin-bottom:0}")
     (SITE / "js" / "site.js").write_text('''function showHall(name) { const poetry = document.getElementById("poetry-hall"); const prose = document.getElementById("prose-hall"); const poetryButton = document.getElementById("btn-poetry"); const proseButton = document.getElementById("btn-prose"); const showPoetry = name === "poetry"; poetry.style.display = showPoetry ? "block" : "none"; prose.style.display = showPoetry ? "none" : "block"; poetryButton.classList.toggle("active", showPoetry); proseButton.classList.toggle("active", !showPoetry); }
 ''', encoding="utf-8")
 
 
 def reader_page(work: dict, kind: str, book: str, previous_path: str | None = None, next_path: str | None = None) -> str:
     if kind == "poetry":
-        text = html.escape(work["text"]).replace("\n", "<br>\n")
-        body = f'<div class="poem-text">{text}</div>'
+        stanzas = [part.strip() for part in re.split(r"\n\s*\n", work["text"]) if part.strip()]
+        stanza_markup = []
+        for stanza in stanzas:
+            lines = html.escape(stanza).replace("\n", "<br>\n")
+            stanza_markup.append(f'<div class="poem-stanza">{lines}</div>')
+        body = f'<div class="poem-text">{"".join(stanza_markup)}</div>'
     else:
         paragraphs = [part.strip() for part in re.split(r"\n\s*\n", work["text"]) if part.strip()]
         body = "".join(f'<p>{html.escape(part).replace(chr(10), "<br>")}</p>' for part in paragraphs)
