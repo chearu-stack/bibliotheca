@@ -90,6 +90,17 @@ def display_book_name(book: str, kind: str, explicit_type: str | None = None) ->
     return f"{label} {book.removeprefix('Книга ')}"
 
 
+def poetry_toc_title(title: str) -> str:
+    """Normalize only the poetry title shown in the table of contents."""
+    value = (title or "").strip().strip('«»\"„“”')
+    value = value.lower()
+    first_letter = re.search(r"[A-Za-zА-Яа-яЁё]", value)
+    if not first_letter:
+        return value
+    index = first_letter.start()
+    return value[:index] + value[index].upper() + value[index + 1:]
+
+
 def poetry_stanzas(text: str) -> list[str]:
     """Preserve real stanzas and normalize line-per-paragraph source exports."""
     parts = [part.strip() for part in re.split(r"\n[ \t]*\n", text) if part.strip()]
@@ -135,7 +146,8 @@ def book_markup(groups: dict, kind: str) -> str:
         links = []
         for number, work in enumerate(works, 1):
             reader_path = f"reader/{kind}/{slugify(book)}-{slugify(work['title'])}-{number}.html?hall={kind}&book={slugify(book)}"
-            links.append(f'<li><a href="{reader_path}">{html.escape(work["title"])}</a></li>')
+            link_title = poetry_toc_title(work["title"]) if kind == "poetry" else work["title"]
+            links.append(f'<li><a href="{reader_path}">{html.escape(link_title)}</a></li>')
         display_name = display_book_name(book, kind, works[0].get("container_type"))
         cards.append(f'''<details class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
   <summary class="book-summary">
