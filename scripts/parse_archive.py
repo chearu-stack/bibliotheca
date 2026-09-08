@@ -14,6 +14,14 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 BOOK_PREFIX = "\u041a\u043d\u0438\u0433\u0430"
 FAVORITES_BOOK = "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435\u00bb"
+CONTAINER_TYPES = {
+    "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041e \u043b\u044e\u0431\u0432\u0438\u00bb": "collection",
+    "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041f\u043e\u0442\u0435\u0440\u044f\u043d\u043d\u044b\u0435 \u0433\u043e\u0434\u044b\u00bb": "collection",
+    "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0421\u043a\u0432\u043e\u0437\u044c \u0430\u0434\u00bb": "collection",
+    "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435\u00bb": "collection",
+    "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u0430\u044f \u043f\u0440\u043e\u0437\u0430\u00bb": "collection",
+    "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0426\u0438\u0432\u0438\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u0433\u043b\u0430\u0437\u0430\u043c\u0438 \u0437\u0434\u0440\u0430\u0432\u043e\u0433\u043e \u0441\u043c\u044b\u0441\u043b\u0430\u00bb": "cycle",
+}
 PROSE_BOOK_RULES = [
     (re.compile(r"^(\u044d\u043f\u0438\u043b\u043e\u0433|\u043a\u043d\u0438\u0433\u0430\s+\u043f\u0435\u0440\u0432\u0430\b|\u043a\u043d\u0438\u0433\u0430\s+\u0432\u0442\u043e\u0440\u0430\b|\u043a\u043d\u0438\u0433\u0430\s+\u0442\u0440\u0435\u0442\u044c\u044f\b|\u043a\u043d\u0438\u0433\u0430\s+\u0447\u0435\u0442\u0432\u0451\u0440\u0442\u0430\b|\u043a\u043d\u0438\u0433\u0430\s+\u043f\u044f\u0442\u0430\u044f\b)", re.IGNORECASE), "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041f\u044f\u0442\u044c \u0432\u043e\u043f\u0440\u043e\u0441\u043e\u0432 \u043a \u0431\u0435\u0437\u043c\u043e\u043b\u0432\u0438\u044e\u00bb"),
     (re.compile(r"^(\u043f\u0443\u0442\u044c \u0434\u0443\u0440\u0430\u043a\u0430|\u0432\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0435|\u0433\u043b\u0430\u0432\u0430 1\.\s*\u043e \u0434\u0435\u043d\u044c\u0433\u0430\u0445|\u0433\u043b\u0430\u0432\u0430 2\s+\u043e \u0432\u043e\u0437\u0440\u0430\u0441\u0442\u0435|\u0433\u043b\u0430\u0432\u0430 3\.\s*\u043e \u0441\u0430\u043c\u043e\u043e\u0431\u043c\u0430\u043d\u0435|\u0433\u043b\u0430\u0432\u0430 4\.\s*\u043e \u0437\u0430\u0432\u0438\u0441\u0438\u043c\u043e\u0441\u0442\u0438|\u0433\u043b\u0430\u0432\u0430 5\.\s*\u043e \u0434\u0435\u0442\u044f\u0445|\u0433\u043b\u0430\u0432\u0430 6\.\s*\u043e \u0434\u0443\u0440\u0430\u043a\u0435)", re.IGNORECASE), "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041f\u0443\u0442\u044c \u0414\u0443\u0440\u0430\u043a\u0430\u00bb"),
@@ -26,6 +34,11 @@ PROSE_BOOK_RULES = [
 def slugify(value: str) -> str:
     value = re.sub(r"[^\w\s-]", "", value, flags=re.UNICODE).strip().lower()
     return re.sub(r"[-\s]+", "-", value) or "untitled"
+
+
+def container_type_for(book: str) -> str:
+    """Return the scalable container taxonomy used by the site builder."""
+    return CONTAINER_TYPES.get(book, "book")
 
 
 def fetch(url: str, timeout: int = 15):
@@ -65,7 +78,7 @@ def parse_work_page(url: str, book: str):
         copyright_text = copyright_match.group(1).strip() if copyright_match else f"\u0415\u0432\u0433\u0435\u043d\u0438\u0439 \u0410\u043b\u0435\u043a\u0441\u0430\u043d\u0434\u0440\u043e\u0432\u0438\u0447 \u0427\u0435\u0440\u043d\u044b\u0448\u0435\u0432{', ' + year if year else ''}"
         certificate_match = re.search(r"\u0421\u0432\u0438\u0434\u0435\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e\s+\u043e\s+\u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438\s+\u2116?\s*(\d+)", page_text, re.IGNORECASE)
         certificate = f"\u0421\u0432\u0438\u0434\u0435\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e \u043e \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438 №{certificate_match.group(1)}" if certificate_match else "\u0421\u0432\u0438\u0434\u0435\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e \u043e \u043f\u0443\u0431\u043b\u0438\u043a\u0430\u0446\u0438\u0438"
-        return {"title": title, "book": book, "date": date, "copyright": f"Copyright: {copyright_text}", "certificate": certificate, "url": url, "text": text_div.get_text().strip()}
+        return {"title": title, "book": book, "container_type": container_type_for(book), "date": date, "copyright": f"Copyright: {copyright_text}", "certificate": certificate, "url": url, "text": text_div.get_text().strip()}
     except requests.RequestException as error:
         print(f"[!] Request failed: {url}: {error}", flush=True)
         return None
@@ -167,7 +180,7 @@ def save_archive_files(works, content_dir: Path, json_path: Path):
         while path.exists():
             path = folder / f"{slugify(work['title'])}-{suffix}.md"
             suffix += 1
-        path.write_text(f'''---\ntitle: "{work["title"]}"\nbook: "{work["book"]}"\ndate: "{work["date"]}"\ncopyright: "{work["copyright"]}"\ncertificate: "{work["certificate"]}"\nsource: "{work["url"]}"\n---\n\n# {work["title"]}\n\n{work["text"]}\n\n---\n\n<footer class="publication-certificate">\n  <p><em>{work["copyright"]}</em><br>\n  <em>{work["certificate"]}</em></p>\n</footer>\n''', encoding="utf-8")
+        path.write_text(f'''---\ntitle: "{work["title"]}"\nbook: "{work["book"]}"\ncontainer_type: "{work["container_type"]}"\ndate: "{work["date"]}"\ncopyright: "{work["copyright"]}"\ncertificate: "{work["certificate"]}"\nsource: "{work["url"]}"\n---\n\n# {work["title"]}\n\n{work["text"]}\n\n---\n\n<footer class="publication-certificate">\n  <p><em>{work["copyright"]}</em><br>\n  <em>{work["certificate"]}</em></p>\n</footer>\n''', encoding="utf-8")
     print(f"[*] Saved {len(works)} Markdown files in {content_dir}", flush=True)
 
 

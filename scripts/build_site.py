@@ -11,6 +11,8 @@ BRAND = "\u0411\u0438\u0431\u043b\u0438\u043e\u0442\u0435\u043a\u0430"
 POETRY = "\u041f\u043e\u044d\u0437\u0438\u044f"
 PROSE = "\u041f\u0440\u043e\u0437\u0430"
 ABOUT = "\u041e\u0431 \u0430\u0432\u0442\u043e\u0440\u0435"
+CONTAINER_LABELS = {"book": "Книга", "collection": "Сборник", "cycle": "Цикл"}
+COLLECTION_TYPES = json.loads((ROOT / "data" / "collections.json").read_text(encoding="utf-8")) if (ROOT / "data" / "collections.json").exists() else {}
 
 
 def generate_vignette(output_path: Path) -> Path:
@@ -79,11 +81,13 @@ POETRY_COLLECTIONS = {
 }
 
 
-def display_book_name(book: str, kind: str) -> str:
-    """Use collection terminology for the four poetry sections only."""
+def display_book_name(book: str, kind: str, explicit_type: str | None = None) -> str:
+    """Return a backward-compatible display label for a book group."""
+    container_type = explicit_type or COLLECTION_TYPES.get(book)
     if kind == "poetry" and book in POETRY_COLLECTIONS:
-        return f"Сборник {book.removeprefix('Книга ')}"
-    return book
+        container_type = "collection"
+    label = CONTAINER_LABELS.get(container_type, "Книга")
+    return f"{label} {book.removeprefix('Книга ')}"
 
 
 def poetry_stanzas(text: str) -> list[str]:
@@ -132,7 +136,7 @@ def book_markup(groups: dict, kind: str) -> str:
         for number, work in enumerate(works, 1):
             reader_path = f"reader/{kind}/{slugify(book)}-{slugify(work['title'])}-{number}.html?hall={kind}&book={slugify(book)}"
             links.append(f'<li><a href="{reader_path}">{html.escape(work["title"])}</a></li>')
-        display_name = display_book_name(book, kind)
+        display_name = display_book_name(book, kind, works[0].get("container_type"))
         cards.append(f'''<details class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
   <summary class="book-summary">
     <span class="book-name">{html.escape(display_name)}</span>
@@ -151,7 +155,7 @@ def build_search_index(archives: dict[str, list[dict]]) -> list[dict]:
             for number, work in enumerate(book_works, 1):
                 index.append({
                     "title": work.get("title", ""),
-                    "book": display_book_name(book, kind),
+                    "book": display_book_name(book, kind, book_works[0].get("container_type")),
                     "kind": kind,
                     "url": f"reader/{kind}/{slugify(book)}-{slugify(work.get('title', ''))}-{number}.html?hall={kind}&book={slugify(book)}",
                     "text": work.get("text", ""),
@@ -353,7 +357,7 @@ def build():
                 if number < len(book_works):
                     following = book_works[number]
                     next_path = f"{slugify(book)}-{slugify(following['title'])}-{number + 1}.html"
-                page = reader_page(work, kind, display_book_name(book, kind), previous_path, next_path)
+                page = reader_page(work, kind, display_book_name(book, kind, work.get("container_type")), previous_path, next_path)
                 page = page.replace('href="../../index.html"', f'href="../../index.html?hall={kind}&book={slugify(book)}"')
                 path.write_text(add_reader_decorations(page, work), encoding="utf-8")
     print(f"Built site: {len(poetry)} poetry works, {len(prose)} prose works.")
