@@ -71,6 +71,55 @@ def group_works(works):
     return groups
 
 
+POETRY_COLLECTIONS = {
+    "Книга «О любви»",
+    "Книга «Потерянные годы»",
+    "Книга «Сквозь ад»",
+    "Книга «Избранное»",
+}
+
+
+def display_book_name(book: str, kind: str) -> str:
+    """Use collection terminology for the four poetry sections only."""
+    if kind == "poetry" and book in POETRY_COLLECTIONS:
+        return f"Сборник {book.removeprefix('Книга ')}"
+    return book
+
+
+def poetry_stanzas(text: str) -> list[str]:
+    """Preserve real stanzas and normalize line-per-paragraph source exports."""
+    parts = [part.strip() for part in re.split(r"\n[ \t]*\n", text) if part.strip()]
+    if len(parts) > 1 and all("\n" not in part for part in parts):
+        return ["\n".join(parts[index:index + 4]) for index in range(0, len(parts), 4)]
+    return parts
+
+
+def poetry_intro_and_stanzas(text: str, intro_blocks: int | None = None) -> tuple[list[str], list[str]]:
+    """Separate leading prose paragraphs from a sustained four-line poem block."""
+    parts = [part.strip() for part in re.split(r"\n[ \t]*\n", text) if part.strip()]
+    if intro_blocks is not None:
+        return parts[:intro_blocks], poetry_stanzas("\n\n".join(parts[intro_blocks:]))
+    start = 0
+    for index in range(max(0, len(parts) - 3)):
+        candidate = parts[index:index + 4]
+        if all(len(line) <= 80 for line in candidate) and sum(len(line) for line in candidate) <= 300:
+            start = index
+            break
+    return parts[:start], poetry_stanzas("\n\n".join(parts[start:]))
+
+
+def intro_blocks_for(work: dict, kind: str) -> int | None:
+    """Read an explicit intro block count from the source Markdown front matter."""
+    path = ROOT / "content" / kind / slugify(work.get("book", "")) / f"{slugify(work.get('title', ''))}.md"
+    if not path.is_file():
+        return None
+    front_matter = path.read_text(encoding="utf-8").split("---", 2)
+    if len(front_matter) < 2:
+        return None
+    match = re.search(r"^intro_blocks:\s*(\d+)\s*$", front_matter[1], re.MULTILINE)
+    return int(match.group(1)) if match else None
+
+
 def year_for(work: dict) -> str:
     match = re.search(r"\b(?:19|20)\d{2}\b", work.get("date", "") or work.get("url", ""))
     return match.group(0) if match else "2026"
@@ -81,11 +130,12 @@ def book_markup(groups: dict, kind: str) -> str:
     for book, works in groups.items():
         links = []
         for number, work in enumerate(works, 1):
-            reader_path = f"reader/{kind}/{slugify(book)}-{slugify(work['title'])}-{number}.html"
+            reader_path = f"reader/{kind}/{slugify(book)}-{slugify(work['title'])}-{number}.html?hall={kind}&book={slugify(book)}"
             links.append(f'<li><a href="{reader_path}">{html.escape(work["title"])}</a></li>')
-        cards.append(f'''<details class="book-card">
+        display_name = display_book_name(book, kind)
+        cards.append(f'''<details class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
   <summary class="book-summary">
-    <span class="book-name">{html.escape(book)}</span>
+    <span class="book-name">{html.escape(display_name)}</span>
     <span class="book-meta">{year_for(works[0])} · {len(works)} произведений</span>
   </summary>
   <ol class="work-list">{"".join(links)}</ol>
@@ -170,19 +220,22 @@ def write_assets():
     with (SITE / "css" / "site.css").open("a", encoding="utf-8") as css:
         css.write("@media(max-width:768px){.book-summary{flex-wrap:wrap;align-items:flex-start;gap:8px}.book-name{overflow-wrap:break-word;word-break:break-word}.book-meta{white-space:normal}}")
         css.write(".reader-controls{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:space-between;margin-top:2rem}.reader-control{border:1px solid var(--brass);font:500 .7rem/1.4 var(--sans);letter-spacing:.06em;padding:.75rem 1rem}.reader-control.is-disabled{border-color:var(--line);color:var(--muted)}.reader-home{background:var(--surface)}.reader-vignette{margin:3rem auto 2rem;max-width:15rem}.reader-vignette img{display:block;height:auto;max-width:100%;width:100%}.work-illustration{display:block;max-width:100%;height:auto;margin:2rem auto;border-radius:4px;opacity:.9}@media(min-width:48rem){.reader-vignette{max-width:20rem}}")
-        css.write(".poem-text{line-height:1.4;white-space:normal}.poem-stanza{margin:0 0 1.5em}.poem-stanza:last-child{margin-bottom:0}")
+        css.write(".poem-text{line-height:1.4;white-space:pre-line}.poem-text>.poem-stanza{display:block;line-height:1.4;margin:0;padding:0 0 1.6em}.poem-text>.poem-stanza+.poem-stanza{margin-top:0}.poem-text>.poem-stanza:last-child{padding-bottom:0}")
+        css.write(".poem-text{line-height:1.2;white-space:normal}.poem-text>.poem-stanza{line-height:1.2}")
+        css.write(".poem-intro{font-style:italic;margin:0 0 2rem}")
     (SITE / "js" / "site.js").write_text('''function showHall(name) { const poetry = document.getElementById("poetry-hall"); const prose = document.getElementById("prose-hall"); const poetryButton = document.getElementById("btn-poetry"); const proseButton = document.getElementById("btn-prose"); const showPoetry = name === "poetry"; poetry.style.display = showPoetry ? "block" : "none"; prose.style.display = showPoetry ? "none" : "block"; poetryButton.classList.toggle("active", showPoetry); proseButton.classList.toggle("active", !showPoetry); }
 ''', encoding="utf-8")
 
 
 def reader_page(work: dict, kind: str, book: str, previous_path: str | None = None, next_path: str | None = None) -> str:
     if kind == "poetry":
-        stanzas = [part.strip() for part in re.split(r"\n\s*\n", work["text"]) if part.strip()]
+        intro_blocks, stanzas = poetry_intro_and_stanzas(work["text"], work.get("intro_blocks"))
         stanza_markup = []
         for stanza in stanzas:
-            lines = html.escape(stanza).replace("\n", "<br>\n")
+            lines = html.escape(stanza).replace("\n", "<br>")
             stanza_markup.append(f'<div class="poem-stanza">{lines}</div>')
-        body = f'<div class="poem-text">{"".join(stanza_markup)}</div>'
+        intro_markup = "".join(f'<p class="poem-intro">{html.escape(block)}</p>' for block in intro_blocks)
+        body = f'{intro_markup}<div class="poem-text">{"".join(stanza_markup)}</div>'
     else:
         paragraphs = [part.strip() for part in re.split(r"\n\s*\n", work["text"]) if part.strip()]
         body = "".join(f'<p>{html.escape(part).replace(chr(10), "<br>")}</p>' for part in paragraphs)
@@ -194,7 +247,7 @@ def reader_page(work: dict, kind: str, book: str, previous_path: str | None = No
 </header>'''
     controls = f'<nav class="reader-controls" aria-label="Навигация по книге">{previous}<a class="reader-control reader-home" href="../../index.html">К списку книг</a>{following}</nav>'
     return f'''<!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(work["title"])} — {BRAND}</title><link rel="stylesheet" href="../../css/site.css"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(work["title"])} — {BRAND}</title><link rel="stylesheet" href="../../css/site.css?v=poetry-spacing-2"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head>
 <body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1><div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p></footer>{controls}</main><script src="../../js/site.js"></script></body></html>'''
 
 
@@ -211,6 +264,8 @@ def build():
     if SITE.exists():
         shutil.rmtree(SITE)
     write_assets()
+    site_js = SITE / "js" / "site.js"
+    site_js.write_text(site_js.read_text(encoding="utf-8") + 'const contextParams = new URLSearchParams(window.location.search); const requestedHall = contextParams.get("hall"); const requestedBook = contextParams.get("book"); showHall(requestedHall === "poetry" ? "poetry" : "prose"); if (requestedBook) { const card = Array.from(document.querySelectorAll("details.book-card")).find(item => item.dataset.book === requestedBook); if (card) card.open = true; }\n', encoding="utf-8")
     poetry = load_archive("poetry")
     prose = load_archive("prose")
     poetry_groups = group_works(poetry)
@@ -252,6 +307,9 @@ def build():
     for kind, works in (("poetry", poetry), ("prose", prose)):
         for book, book_works in group_works(works).items():
             for number, work in enumerate(book_works, 1):
+                work = dict(work)
+                if kind == "poetry":
+                    work["intro_blocks"] = intro_blocks_for(work, kind)
                 path = SITE / "reader" / kind / f"{slugify(book)}-{slugify(work['title'])}-{number}.html"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 previous_path = None
@@ -262,7 +320,8 @@ def build():
                 if number < len(book_works):
                     following = book_works[number]
                     next_path = f"{slugify(book)}-{slugify(following['title'])}-{number + 1}.html"
-                page = reader_page(work, kind, book, previous_path, next_path)
+                page = reader_page(work, kind, display_book_name(book, kind), previous_path, next_path)
+                page = page.replace('href="../../index.html"', f'href="../../index.html?hall={kind}&book={slugify(book)}"')
                 path.write_text(add_reader_decorations(page, work), encoding="utf-8")
     print(f"Built site: {len(poetry)} poetry works, {len(prose)} prose works.")
 
