@@ -148,13 +148,15 @@ def book_markup(groups: dict, kind: str) -> str:
             reader_path = f"reader/{kind}/{slugify(book)}-{slugify(work['title'])}-{number}.html?hall={kind}&book={slugify(book)}"
             link_title = poetry_toc_title(work["title"]) if kind == "poetry" else work["title"]
             links.append(f'<li><a href="{reader_path}">{html.escape(link_title)}</a></li>')
-        display_name = display_book_name(book, kind, works[0].get("container_type"))
+        explicit_type = works[0].get("container_type")
+        display_name = display_book_name(book, kind, explicit_type)
+        list_tag = "ul" if (explicit_type or COLLECTION_TYPES.get(book)) == "book" else "ol"
         cards.append(f'''<details class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
   <summary class="book-summary">
     <span class="book-name">{html.escape(display_name)}</span>
     <span class="book-meta">{year_for(works[0])} · {len(works)} произведений</span>
   </summary>
-  <ol class="work-list">{"".join(links)}</ol>
+  <{list_tag} class="work-list">{"".join(links)}</{list_tag}>
 </details>''')
     return "\n".join(cards)
 
@@ -259,6 +261,7 @@ def write_assets():
         css.write(".site-search{display:none}.portrait-search{margin-top:calc(clamp(3rem,9vw,7rem) + 1.5rem);max-width:300px}.portrait-search label{color:var(--muted);display:block;font:.7rem/1.4 var(--sans);letter-spacing:.1em;text-transform:uppercase}.portrait-search input{background:transparent;border:0;border-bottom:1px solid var(--muted);color:var(--paper);font:1rem/1.4 var(--serif);padding:.45rem 0;width:100%}.portrait-search input:focus{border-bottom-color:var(--brass);outline:0}.search-results{display:grid;gap:.35rem;margin-top:.5rem}.search-result{border-bottom:1px solid var(--line);padding:.45rem 0}.search-result a{color:var(--paper);display:block}.search-result a:hover{color:var(--brass)}.search-result-meta{color:var(--muted);font:.65rem/1.4 var(--sans);letter-spacing:.04em;text-transform:uppercase}@media(max-width:768px){.portrait-search{margin:1rem auto 0}}")
         css.write("@media(min-width:769px){.hero-section{grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:auto auto;align-items:start}.hero-content,.hero-author-frame{display:contents}.hero-title{grid-column:1;grid-row:1}.author-portrait{grid-column:2;grid-row:1}.hero-subtitle{grid-column:1;grid-row:2}.portrait-search{grid-column:2;grid-row:2;margin:0;align-self:start}}@media(max-width:768px){.hero-section{grid-template-columns:1fr;grid-template-rows:auto;grid-template-areas:\"title\" \"subtitle\" \"portrait\" \"search\"}.hero-content,.hero-author-frame{display:contents}.hero-title{grid-area:title}.hero-subtitle{grid-area:subtitle}.author-portrait{grid-area:portrait}.portrait-search{grid-area:search;margin:1rem auto 0;width:100%}}")
         css.write("@media(min-width:769px){.hero-content{max-width:600px}.hero-title{font-size:clamp(3rem,9vw,7rem)}}.hero-title span{display:block}.portrait-search input{color:#888888}")
+        css.write("ul.work-list{list-style:none;padding-left:1.25rem}")
     (SITE / "js" / "site.js").write_text('''function showHall(name) { const poetry = document.getElementById("poetry-hall"); const prose = document.getElementById("prose-hall"); const poetryButton = document.getElementById("btn-poetry"); const proseButton = document.getElementById("btn-prose"); const showPoetry = name === "poetry"; poetry.style.display = showPoetry ? "block" : "none"; prose.style.display = showPoetry ? "none" : "block"; poetryButton.classList.toggle("active", showPoetry); proseButton.classList.toggle("active", !showPoetry); }
 ''', encoding="utf-8")
 
