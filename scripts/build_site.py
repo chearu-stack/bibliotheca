@@ -143,6 +143,22 @@ def book_markup(groups: dict, kind: str) -> str:
     return "\n".join(cards)
 
 
+def build_search_index(archives: dict[str, list[dict]]) -> list[dict]:
+    """Build a local, searchable index with only internal reader links."""
+    index = []
+    for kind, works in archives.items():
+        for book, book_works in group_works(works).items():
+            for number, work in enumerate(book_works, 1):
+                index.append({
+                    "title": work.get("title", ""),
+                    "book": display_book_name(book, kind),
+                    "kind": kind,
+                    "url": f"reader/{kind}/{slugify(book)}-{slugify(work.get('title', ''))}-{number}.html?hall={kind}&book={slugify(book)}",
+                    "text": work.get("text", ""),
+                })
+    return index
+
+
 def navigation(active: str = "hall", prefix: str = "") -> str:
     home_class = ' class="active"' if active == "hall" else ""
     about_class = ' class="active"' if active == "about" else ""
@@ -223,6 +239,8 @@ def write_assets():
         css.write(".poem-text{line-height:1.4;white-space:pre-line}.poem-text>.poem-stanza{display:block;line-height:1.4;margin:0;padding:0 0 1.6em}.poem-text>.poem-stanza+.poem-stanza{margin-top:0}.poem-text>.poem-stanza:last-child{padding-bottom:0}")
         css.write(".poem-text{line-height:1.2;white-space:normal}.poem-text>.poem-stanza{line-height:1.2}")
         css.write(".poem-intro{font-style:italic;margin:0 0 2rem}")
+        css.write(".site-search{border:1px solid var(--line);margin:0 0 2rem;padding:1rem}.site-search label{color:var(--muted);display:block;font:500 .7rem/1.4 var(--sans);letter-spacing:.1em;margin-bottom:.5rem;text-transform:uppercase}.site-search input{background:var(--ink);border:1px solid var(--brass);color:var(--paper);font:1rem/1.4 var(--serif);padding:.75rem;width:100%}.search-results{display:grid;gap:.5rem;margin-top:.75rem}.search-result{border-top:1px solid var(--line);padding:.6rem 0}.search-result a{color:var(--paper);display:block}.search-result a:hover{color:var(--brass)}.search-result-meta{color:var(--muted);font:.7rem/1.4 var(--sans);letter-spacing:.05em;text-transform:uppercase}")
+        css.write(".site-search{display:none}.portrait-search{margin-top:1rem;max-width:300px}.portrait-search label{color:var(--muted);display:block;font:.7rem/1.4 var(--sans);letter-spacing:.1em;text-transform:uppercase}.portrait-search input{background:transparent;border:0;border-bottom:1px solid var(--muted);color:var(--paper);font:1rem/1.4 var(--serif);padding:.45rem 0;width:100%}.portrait-search input:focus{border-bottom-color:var(--brass);outline:0}.search-results{display:grid;gap:.35rem;margin-top:.5rem}.search-result{border-bottom:1px solid var(--line);padding:.45rem 0}.search-result a{color:var(--paper);display:block}.search-result a:hover{color:var(--brass)}.search-result-meta{color:var(--muted);font:.65rem/1.4 var(--sans);letter-spacing:.04em;text-transform:uppercase}@media(max-width:768px){.portrait-search{margin:1rem auto 0}}")
     (SITE / "js" / "site.js").write_text('''function showHall(name) { const poetry = document.getElementById("poetry-hall"); const prose = document.getElementById("prose-hall"); const poetryButton = document.getElementById("btn-poetry"); const proseButton = document.getElementById("btn-prose"); const showPoetry = name === "poetry"; poetry.style.display = showPoetry ? "block" : "none"; prose.style.display = showPoetry ? "none" : "block"; poetryButton.classList.toggle("active", showPoetry); proseButton.classList.toggle("active", !showPoetry); }
 ''', encoding="utf-8")
 
@@ -266,13 +284,22 @@ def build():
     write_assets()
     site_js = SITE / "js" / "site.js"
     site_js.write_text(site_js.read_text(encoding="utf-8") + 'const contextParams = new URLSearchParams(window.location.search); const requestedHall = contextParams.get("hall"); const requestedBook = contextParams.get("book"); showHall(requestedHall === "poetry" ? "poetry" : "prose"); if (requestedBook) { const card = Array.from(document.querySelectorAll("details.book-card")).find(item => item.dataset.book === requestedBook); if (card) card.open = true; }\n', encoding="utf-8")
+    site_js.write_text(site_js.read_text(encoding="utf-8") + 'const searchInput = document.getElementById("site-search-input"); const searchResults = document.getElementById("site-search-results"); if (searchInput && searchResults) { fetch("search.json").then(response => response.json()).then(items => { searchInput.addEventListener("input", () => { const query = searchInput.value.trim().toLocaleLowerCase(); searchResults.replaceChildren(); if (!query) return; items.filter(item => (item.title + " " + item.book + " " + item.text).toLocaleLowerCase().includes(query)).slice(0, 30).forEach(item => { const row = document.createElement("div"); row.className = "search-result"; const link = document.createElement("a"); link.href = item.url; link.textContent = item.title; const meta = document.createElement("span"); meta.className = "search-result-meta"; meta.textContent = (item.kind === "poetry" ? "Поэзия" : "Проза") + " · " + item.book; row.append(link, meta); searchResults.append(row); }); }); }); }\n', encoding="utf-8")
+    site_js.write_text(site_js.read_text(encoding="utf-8") + 'const localSearchInput = document.getElementById("site-search-input"); const localSearchResults = document.getElementById("site-search-results"); if (localSearchInput && localSearchResults && window.LIBRARY_SEARCH_INDEX) { localSearchInput.addEventListener("input", () => { const query = localSearchInput.value.trim().toLocaleLowerCase(); localSearchResults.replaceChildren(); if (!query) return; window.LIBRARY_SEARCH_INDEX.filter(item => (item.title + " " + item.book + " " + item.text).toLocaleLowerCase().includes(query)).slice(0, 10).forEach(item => { const row = document.createElement("div"); row.className = "search-result"; const link = document.createElement("a"); link.href = item.url; link.textContent = item.title; const meta = document.createElement("span"); meta.className = "search-result-meta"; meta.textContent = (item.kind === "poetry" ? "Поэзия" : "Проза") + " · " + item.book; row.append(link, meta); localSearchResults.append(row); }); }); }\n', encoding="utf-8")
     poetry = load_archive("poetry")
     prose = load_archive("prose")
     poetry_groups = group_works(poetry)
     prose_groups = group_works(prose)
+    search_index = build_search_index({"poetry": poetry, "prose": prose})
+    (SITE / "search.json").write_text(json.dumps(search_index, ensure_ascii=False), encoding="utf-8")
+    (SITE / "js" / "search-data.js").write_text(
+        "window.LIBRARY_SEARCH_INDEX = " + json.dumps(search_index, ensure_ascii=False) + ";",
+        encoding="utf-8",
+    )
     portrait_markup = ''
     if (ROOT / "assets" / "images" / "avtor.jpg").exists():
         portrait_markup = '<img src="assets/images/avtor.jpg" alt="Чернышев Евгений Александрович" class="author-portrait">'
+    portrait_markup += '<div class="portrait-search"><label for="site-search-input">Поиск по библиотеке</label><input id="site-search-input" type="search" placeholder="Найти произведение…"><div id="site-search-results" class="search-results" aria-live="polite"></div></div>'
     header = f'''<header class="site-header">
   {navigation("hall")}
   <section class="hero-section">
@@ -284,6 +311,11 @@ def build():
   </section>
 </header>'''
     main = f'''<main class="main-content">
+  <section class="site-search" aria-label="Поиск по библиотеке">
+    <label for="site-search-input">Поиск по всем произведениям</label>
+    <input id="site-search-input" type="search" placeholder="Название, строка или слово">
+    <div id="site-search-results" class="search-results" aria-live="polite"></div>
+  </section>
   <div class="hall-tabs" role="tablist">
     <button id="btn-prose" class="tab-btn active" onclick="showHall('prose')" role="tab">{PROSE}</button>
     <button id="btn-poetry" class="tab-btn" onclick="showHall('poetry')" role="tab">{POETRY}</button>
@@ -293,6 +325,7 @@ def build():
 </main>'''
     footer = '<footer class="site-footer"><p>2026 Евгений Чернышев · Литературный архив</p></footer>'
     index = f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{BRAND}</title><link rel="stylesheet" href="css/site.css"><link rel="icon" type="image/svg+xml" href="favicon.svg"></head><body>{header}{main}{footer}<script src="js/site.js"></script></body></html>'''
+    index = index.replace('<script src="js/site.js"></script>', '<script src="js/search-data.js"></script><script src="js/site.js"></script>')
     (SITE / "index.html").write_text(index, encoding="utf-8")
     about_header = f'''<header class="site-header">
   {navigation("about")}
