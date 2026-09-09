@@ -181,10 +181,16 @@ def save_archive_files(works, content_dir: Path, json_path: Path):
         except OSError:
             pass
     json_path.write_text(json.dumps(works, ensure_ascii=False, indent=2), encoding="utf-8")
+    used_paths = set()
     for work in works:
         folder = content_dir / slugify(work["book"])
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"{slugify(work['title'])}.md"
+        suffix = 2
+        while path in used_paths:
+            path = folder / f"{slugify(work['title'])}-{suffix}.md"
+            suffix += 1
+        used_paths.add(path)
         path.write_text(f'''---\ntitle: "{work["title"]}"\nbook: "{work["book"]}"\ncontainer_type: "{work["container_type"]}"\ndate: "{work["date"]}"\ncopyright: "{work["copyright"]}"\ncertificate: "{work["certificate"]}"\nsource: "{work["url"]}"\n---\n\n# {work["title"]}\n\n{work["text"]}\n\n---\n\n<footer class="publication-certificate">\n  <p><em>{work["copyright"]}</em><br>\n  <em>{work["certificate"]}</em></p>\n</footer>\n''', encoding="utf-8")
     print(f"[*] Saved {len(works)} Markdown files in {content_dir}", flush=True)
 
