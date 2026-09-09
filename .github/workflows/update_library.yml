@@ -3,6 +3,10 @@ name: Auto-update Library
 on:
   schedule:
     - cron: '0 3 * * *'
+  push:
+    paths:
+      - 'scripts/parse_archive.py'
+      - '.github/workflows/update_library.yml'
   workflow_dispatch:
 
 permissions:

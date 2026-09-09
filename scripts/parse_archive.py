@@ -118,7 +118,7 @@ def classify_prose_book(title: str) -> str:
         return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0421\u043b\u043e\u0432\u043e\u00bb"
     if value.startswith(("\u043f\u044f\u0442\u044c \u043f\u0440\u043e\u0446\u0435\u043d\u0442\u043e\u0432", "\u043a\u043e\u0432\u0447\u0435\u0433", "\u044d\u0432\u043e\u043b\u044e\u0446\u0438\u044f", "\u043f\u0440\u0438\u0432\u0435\u0442 \u043e\u0442 \u0434\u0438\u043d\u043e\u0437\u0430\u0432\u0440\u043e\u0432")):
         return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0426\u0438\u0432\u0438\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u0433\u043b\u0430\u0437\u0430\u043c\u0438 \u0437\u0434\u0440\u0430\u0432\u043e\u0433\u043e \u0441\u043c\u044b\u0441\u043b\u0430\u00bb"
-    if value.startswith(("\u043e\u0442 \u0430\u0432\u0442\u043e\u0440\u0430", "\u0433\u043b\u0430\u0432\u0430 1. \u0441\u0442\u0430\u0440\u0438\u043a", "\u0433\u043b\u0430\u0432\u0430 2. \u043f\u0438\u0440\u0430\u043c\u0438\u0434\u044b", "\u0433\u043b\u0430\u0432\u0430 3. \u043e\u0434\u0438\u043d")):
+    if value.startswith(("\u043e\u0442 \u0430\u0432\u0442\u043e\u0440\u0430", "\u0433\u043b\u0430\u0432\u0430 1. \u0441\u0442\u0430\u0440\u0438\u043a", "\u0433\u043b\u0430\u0432\u0430 2. \u043f\u0438\u0440\u0430\u043c\u0438\u0434\u044b", "\u0433\u043b\u0430\u0432\u0430 3. \u043e\u0434\u0438\u043d", "\u0433\u043b\u0430\u0432\u0430 4. \u043f\u0440\u043e\u043f\u0438\u0441\u043a\u0430 \u0432 \u0433\u043e\u043b\u043e\u0432\u0435")):
         return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0424\u0443\u0433\u0443 \u0434\u043b\u044f \u0447\u0435\u043b\u043e\u0432\u0435\u0447\u0435\u0441\u0442\u0432\u0430\u00bb"
     return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u0430\u044f \u043f\u0440\u043e\u0437\u0430\u00bb"
 
@@ -171,15 +171,20 @@ def parse_portal_archive(author_url: str, output_dir: Path, json_name: str, book
 def save_archive_files(works, content_dir: Path, json_path: Path):
     content_dir.mkdir(parents=True, exist_ok=True)
     json_path.parent.mkdir(parents=True, exist_ok=True)
+    # The archive content is generated output. Remove only old Markdown files
+    # from this portal before writing the current authoritative snapshot.
+    for old_file in content_dir.rglob("*.md"):
+        old_file.unlink()
+    for old_dir in sorted((path for path in content_dir.rglob("*") if path.is_dir()), key=lambda path: len(path.parts), reverse=True):
+        try:
+            old_dir.rmdir()
+        except OSError:
+            pass
     json_path.write_text(json.dumps(works, ensure_ascii=False, indent=2), encoding="utf-8")
     for work in works:
         folder = content_dir / slugify(work["book"])
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"{slugify(work['title'])}.md"
-        suffix = 2
-        while path.exists():
-            path = folder / f"{slugify(work['title'])}-{suffix}.md"
-            suffix += 1
         path.write_text(f'''---\ntitle: "{work["title"]}"\nbook: "{work["book"]}"\ncontainer_type: "{work["container_type"]}"\ndate: "{work["date"]}"\ncopyright: "{work["copyright"]}"\ncertificate: "{work["certificate"]}"\nsource: "{work["url"]}"\n---\n\n# {work["title"]}\n\n{work["text"]}\n\n---\n\n<footer class="publication-certificate">\n  <p><em>{work["copyright"]}</em><br>\n  <em>{work["certificate"]}</em></p>\n</footer>\n''', encoding="utf-8")
     print(f"[*] Saved {len(works)} Markdown files in {content_dir}", flush=True)
 
