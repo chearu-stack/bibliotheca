@@ -280,7 +280,7 @@ def write_assets():
         css.write("@media(min-width:769px){.hero-content{max-width:600px}.hero-title{font-size:clamp(3rem,9vw,7rem)}}.hero-title span{display:block}.portrait-search input{color:#888888}")
         css.write("ul.work-list{list-style:none;padding-left:1.25rem}")
         css.write(".work-list li{display:flex;flex-direction:column;gap:.15rem}.work-publication,.reader-publication{color:var(--muted);font:.68rem/1.4 var(--sans);letter-spacing:.04em}.reader-publication{margin:-1rem 0 2rem}")
-        css.write(".book-summary{display:block}.book-name{display:block}.book-meta{display:block;margin-top:.35rem;white-space:normal}")
+        css.write(".book-summary{align-items:center;display:flex;gap:1rem;justify-content:space-between}.book-name{display:block;min-width:0}.book-meta{display:block;margin-top:0;white-space:nowrap}@media(max-width:768px){.book-summary{align-items:flex-start;flex-direction:column;gap:.35rem}.book-meta{margin-top:0;white-space:normal}.book-name{overflow-wrap:break-word;word-break:break-word;width:100%}}")
     (SITE / "js" / "site.js").write_text('''function showHall(name) { const poetry = document.getElementById("poetry-hall"); const prose = document.getElementById("prose-hall"); const poetryButton = document.getElementById("btn-poetry"); const proseButton = document.getElementById("btn-prose"); const showPoetry = name === "poetry"; poetry.style.display = showPoetry ? "block" : "none"; prose.style.display = showPoetry ? "none" : "block"; poetryButton.classList.toggle("active", showPoetry); proseButton.classList.toggle("active", !showPoetry); }
 ''', encoding="utf-8")
 
