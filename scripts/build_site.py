@@ -141,6 +141,20 @@ def publication_label(work: dict) -> str:
     return f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e: {date}" if date else ""
 
 
+def work_count_label(count: int) -> str:
+    """Return the grammatically correct Russian form for a work count."""
+    number = abs(int(count))
+    if 11 <= number % 100 <= 14:
+        word = "\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0439"
+    elif number % 10 == 1:
+        word = "\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0435"
+    elif number % 10 in (2, 3, 4):
+        word = "\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u044f"
+    else:
+        word = "\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0434\u0435\u043d\u0438\u0439"
+    return f"{count} {word}"
+
+
 def book_markup(groups: dict, kind: str) -> str:
     cards = []
     for book, works in groups.items():
@@ -157,7 +171,7 @@ def book_markup(groups: dict, kind: str) -> str:
         cards.append(f'''<details class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
   <summary class="book-summary">
     <span class="book-name">{html.escape(display_name)}</span>
-    <span class="book-meta">{len(works)} произведений</span>
+    <span class="book-meta">{work_count_label(len(works))}</span>
   </summary>
   <{list_tag} class="work-list">{"".join(links)}</{list_tag}>
 </details>''')
