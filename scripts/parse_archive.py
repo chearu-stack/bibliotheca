@@ -101,19 +101,31 @@ def collect_book_links(domain: str, soup: BeautifulSoup):
     return books
 
 
-def classify_prose_book(title: str) -> str:
-    value = title.strip().lower()
-    if value.startswith(("\u044d\u043f\u0438\u043b\u043e\u0433", "\u043a\u043d\u0438\u0433\u0430 \u043f\u0435\u0440\u0432\u0430\u044f", "\u043a\u043d\u0438\u0433\u0430 \u0432\u0442\u043e\u0440\u0430\u044f", "\u043a\u043d\u0438\u0433\u0430 \u0442\u0440\u0435\u0442\u044c\u044f", "\u043a\u043d\u0438\u0433\u0430 \u0447\u0435\u0442\u0432\u0451\u0440\u0442\u0430\u044f", "\u043a\u043d\u0438\u0433\u0430 \u043f\u044f\u0442\u0430\u044f")):
-        return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041f\u044f\u0442\u044c \u0432\u043e\u043f\u0440\u043e\u0441\u043e\u0432 \u043a \u0431\u0435\u0437\u043c\u043e\u043b\u0432\u0438\u044e\u00bb"
-    if value.startswith(("\u043f\u0443\u0442\u044c \u0434\u0443\u0440\u0430\u043a\u0430", "\u0432\u0441\u0442\u0443\u043f\u043b\u0435\u043d\u0438\u0435", "\u0433\u043b\u0430\u0432\u0430 1. \u043e \u0434\u0435\u043d\u044c\u0433\u0430\u0445", "\u0433\u043b\u0430\u0432\u0430 2 \u043e \u0432\u043e\u0437\u0440\u0430\u0441\u0442\u0435", "\u0433\u043b\u0430\u0432\u0430 3. \u043e \u0441\u0430\u043c\u043e\u043e\u0431\u043c\u0430\u043d\u0435", "\u0433\u043b\u0430\u0432\u0430 4. \u043e \u0437\u0430\u0432\u0438\u0441\u0438\u043c\u043e\u0441\u0442\u0438", "\u0433\u043b\u0430\u0432\u0430 5. \u043e \u0434\u0435\u0442\u044f\u0445", "\u0433\u043b\u0430\u0432\u0430 6. \u043e \u0434\u0443\u0440\u0430\u043a\u0435")):
-        return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041f\u0443\u0442\u044c \u0414\u0443\u0440\u0430\u043a\u0430\u00bb"
-    if value.startswith("\u0441\u043b\u043e\u0432\u043e"):
-        return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0421\u043b\u043e\u0432\u043e\u00bb"
-    if value.startswith(("\u043f\u044f\u0442\u044c \u043f\u0440\u043e\u0446\u0435\u043d\u0442\u043e\u0432", "\u043a\u043e\u0432\u0447\u0435\u0433", "\u044d\u0432\u043e\u043b\u044e\u0446\u0438\u044f", "\u043f\u0440\u0438\u0432\u0435\u0442 \u043e\u0442 \u0434\u0438\u043d\u043e\u0437\u0430\u0432\u0440\u043e\u0432")):
-        return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0426\u0438\u0432\u0438\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u0433\u043b\u0430\u0437\u0430\u043c\u0438 \u0437\u0434\u0440\u0430\u0432\u043e\u0433\u043e \u0441\u043c\u044b\u0441\u043b\u0430\u00bb"
-    if value.startswith(("\u043e\u0442 \u0430\u0432\u0442\u043e\u0440\u0430", "\u0433\u043b\u0430\u0432\u0430 1. \u0441\u0442\u0430\u0440\u0438\u043a", "\u0433\u043b\u0430\u0432\u0430 2. \u043f\u0438\u0440\u0430\u043c\u0438\u0434\u044b", "\u0433\u043b\u0430\u0432\u0430 3. \u043e\u0434\u0438\u043d", "\u0433\u043b\u0430\u0432\u0430 4. \u043f\u0440\u043e\u043f\u0438\u0441\u043a\u0430 \u0432 \u0433\u043e\u043b\u043e\u0432\u0435", "\u0433\u043b\u0430\u0432\u0430 5. \u044d\u0442\u0438\u043a\u0435\u0442\u043a\u0430", "\u044d\u0442\u0438\u043a\u0435\u0442\u043a\u0430")):
-        return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0424\u0443\u0433\u0443 \u0434\u043b\u044f \u0447\u0435\u043b\u043e\u0432\u0435\u0447\u0435\u0441\u0442\u0432\u0430\u00bb"
-    return "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u0430\u044f \u043f\u0440\u043e\u0437\u0430\u00bb"
+def normalize_book_name(name: str) -> str:
+    name = " ".join(name.split())
+    return name if name.startswith(BOOK_PREFIX) else f"{BOOK_PREFIX} \u00ab{name}\u00bb"
+
+
+def collect_sectioned_works(domain: str, soup: BeautifulSoup, favorites_book: str):
+    """Read author-page sections in DOM order: book header, then its poem links."""
+    current_book = favorites_book
+    collected = []
+    seen = set()
+    for node in soup.find_all(["div", "a"]):
+        if node.name == "div" and node.get("id", "").lower() == "bookheader":
+            heading = node.get_text(" ", strip=True)
+            if heading:
+                current_book = normalize_book_name(heading)
+            continue
+        if node.name != "a" or "poemlink" not in (node.get("class") or []):
+            continue
+        href = node.get("href", "")
+        url = absolute_url(domain, href)
+        if not href or url in seen:
+            continue
+        seen.add(url)
+        collected.append((url, current_book, node.get_text(" ", strip=True)))
+    return collected
 
 
 def parse_portal_archive(author_url: str, output_dir: Path, json_name: str, book_limit=None, work_limit=None):
@@ -123,30 +135,23 @@ def parse_portal_archive(author_url: str, output_dir: Path, json_name: str, book
     if "stihi.ru" in author_url:
         author_urls = [f"{author_url}?s={offset}" for offset in (0, 50, 100)]
     author_soups = [fetch(url)[1] for url in author_urls]
-    author_soup = author_soups[0]
-    books = collect_book_links(domain, author_soup)
-    if book_limit:
-        books = books[:book_limit]
-    print(f"[*] Books selected: {len(books)}", flush=True)
+    favorites_book = FAVORITES_BOOK if "proza.ru" in author_url else POETRY_FAVORITES_BOOK
     queue = []
     assigned = set()
-    for book, book_url in books:
-        print(f"[*] Reading book: {book}", flush=True)
-        _, book_soup = fetch(book_url, 12)
-        for anchor in book_soup.find_all("a", class_="poemlink"):
-            url = absolute_url(domain, anchor["href"])
-            if url not in assigned:
-                assigned.add(url)
-                queue.append((url, book, anchor.get_text(" ", strip=True)))
-    if not book_limit or not books:
-        for page_soup in author_soups:
-            for anchor in page_soup.find_all("a", class_="poemlink"):
-                url = absolute_url(domain, anchor["href"])
-                if url not in assigned:
-                    assigned.add(url)
-                    label = anchor.get_text(" ", strip=True)
-                    book = classify_prose_book(label) if "proza.ru" in author_url else FAVORITES_BOOK
-                    queue.append((url, book, label))
+    for page_soup in author_soups:
+        for item in collect_sectioned_works(domain, page_soup, favorites_book):
+            if item[0] not in assigned:
+                assigned.add(item[0])
+                queue.append(item)
+    ordered_books = []
+    for _, book, _ in queue:
+        if book != favorites_book and book not in ordered_books:
+            ordered_books.append(book)
+    if book_limit:
+        selected_books = set(ordered_books[:book_limit])
+        queue = [item for item in queue if item[1] in selected_books]
+        ordered_books = ordered_books[:book_limit]
+    print(f"[*] Books selected: {len(ordered_books)}", flush=True)
     if work_limit:
         queue = queue[:work_limit]
     print(f"[*] Works queued: {len(queue)}", flush=True)
@@ -158,7 +163,7 @@ def parse_portal_archive(author_url: str, output_dir: Path, json_name: str, book
             works.append(work)
         time.sleep(0.4)
     save_archive_files(works, output_dir, DATA_DIR / json_name)
-    return len(books), len(works)
+    return len(ordered_books), len(works)
 
 
 def save_archive_files(works, content_dir: Path, json_path: Path):
