@@ -135,9 +135,10 @@ def intro_blocks_for(work: dict, kind: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
-def year_for(work: dict) -> str:
-    match = re.search(r"\b(?:19|20)\d{2}\b", work.get("date", "") or work.get("url", ""))
-    return match.group(0) if match else "2026"
+def publication_label(work: dict) -> str:
+    """Return the source publication timestamp without implying a book date."""
+    date = str(work.get("date", "") or "").strip()
+    return f"\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e: {date}" if date else ""
 
 
 def book_markup(groups: dict, kind: str) -> str:
@@ -147,14 +148,16 @@ def book_markup(groups: dict, kind: str) -> str:
         for number, work in enumerate(works, 1):
             reader_path = f"reader/{kind}/{slugify(book)}-{slugify(work['title'])}-{number}.html?hall={kind}&book={slugify(book)}"
             link_title = poetry_toc_title(work["title"]) if kind == "poetry" else work["title"]
-            links.append(f'<li><a href="{reader_path}">{html.escape(link_title)}</a></li>')
+            publication = publication_label(work)
+            metadata = f'<span class="work-publication">{html.escape(publication)}</span>' if publication else ""
+            links.append(f'<li><a href="{reader_path}">{html.escape(link_title)}</a>{metadata}</li>')
         explicit_type = works[0].get("container_type")
         display_name = display_book_name(book, kind, explicit_type)
         list_tag = "ul" if (explicit_type or COLLECTION_TYPES.get(book)) == "book" else "ol"
         cards.append(f'''<details class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
   <summary class="book-summary">
     <span class="book-name">{html.escape(display_name)}</span>
-    <span class="book-meta">{year_for(works[0])} · {len(works)} произведений</span>
+    <span class="book-meta">{len(works)} произведений</span>
   </summary>
   <{list_tag} class="work-list">{"".join(links)}</{list_tag}>
 </details>''')
@@ -262,6 +265,7 @@ def write_assets():
         css.write("@media(min-width:769px){.hero-section{grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:auto auto;align-items:start}.hero-content,.hero-author-frame{display:contents}.hero-title{grid-column:1;grid-row:1}.author-portrait{grid-column:2;grid-row:1}.hero-subtitle{grid-column:1;grid-row:2}.portrait-search{grid-column:2;grid-row:2;margin:0;align-self:start}}@media(max-width:768px){.hero-section{grid-template-columns:1fr;grid-template-rows:auto;grid-template-areas:\"title\" \"subtitle\" \"portrait\" \"search\"}.hero-content,.hero-author-frame{display:contents}.hero-title{grid-area:title}.hero-subtitle{grid-area:subtitle}.author-portrait{grid-area:portrait}.portrait-search{grid-area:search;margin:1rem auto 0;width:100%}}")
         css.write("@media(min-width:769px){.hero-content{max-width:600px}.hero-title{font-size:clamp(3rem,9vw,7rem)}}.hero-title span{display:block}.portrait-search input{color:#888888}")
         css.write("ul.work-list{list-style:none;padding-left:1.25rem}")
+        css.write(".work-list li{display:flex;flex-direction:column;gap:.15rem}.work-publication,.reader-publication{color:var(--muted);font:.68rem/1.4 var(--sans);letter-spacing:.04em}.reader-publication{margin:-1rem 0 2rem}")
     (SITE / "js" / "site.js").write_text('''function showHall(name) { const poetry = document.getElementById("poetry-hall"); const prose = document.getElementById("prose-hall"); const poetryButton = document.getElementById("btn-poetry"); const proseButton = document.getElementById("btn-prose"); const showPoetry = name === "poetry"; poetry.style.display = showPoetry ? "block" : "none"; prose.style.display = showPoetry ? "none" : "block"; poetryButton.classList.toggle("active", showPoetry); proseButton.classList.toggle("active", !showPoetry); }
 ''', encoding="utf-8")
 
@@ -285,9 +289,11 @@ def reader_page(work: dict, kind: str, book: str, previous_path: str | None = No
   <a class="reader-back" href="../../index.html">К списку книг</a>
 </header>'''
     controls = f'<nav class="reader-controls" aria-label="Навигация по книге">{previous}<a class="reader-control reader-home" href="../../index.html">К списку книг</a>{following}</nav>'
+    publication = publication_label(work)
+    publication_markup = f'<p class="reader-publication">{html.escape(publication)}</p>' if publication else ""
     return f'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(work["title"])} — {BRAND}</title><link rel="stylesheet" href="../../css/site.css?v=poetry-spacing-2"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head>
-<body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1><div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p></footer>{controls}</main><script src="../../js/site.js"></script></body></html>'''
+<body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1>{publication_markup}<div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p></footer>{controls}</main><script src="../../js/site.js"></script></body></html>'''
 
 
 def add_reader_decorations(page: str, work: dict) -> str:

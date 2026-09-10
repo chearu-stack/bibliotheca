@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - 'scripts/parse_archive.py'
+      - 'scripts/build_site.py'
       - '.github/workflows/update_library.yml'
   workflow_dispatch:
 
