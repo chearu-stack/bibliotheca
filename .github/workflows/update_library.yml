@@ -2,7 +2,7 @@ name: Auto-update Library
 
 on:
   schedule:
-    - cron: '7 3,15 * * *'
+    - cron: '15 4,16 * * *'
   push:
     paths:
       - 'scripts/parse_archive.py'
