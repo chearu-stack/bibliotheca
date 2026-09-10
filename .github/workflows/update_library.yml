@@ -3,6 +3,9 @@ name: Auto-update Library
 on:
   schedule:
     - cron: '15 4,16 * * *'
+  repository_dispatch:
+    types:
+      - archive-refresh
   push:
     paths:
       - 'scripts/parse_archive.py'
