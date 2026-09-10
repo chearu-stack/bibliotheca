@@ -14,6 +14,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 BOOK_PREFIX = "\u041a\u043d\u0438\u0433\u0430"
 FAVORITES_BOOK = "\u041a\u043d\u0438\u0433\u0430 \u00ab\u0418\u0437\u0431\u0440\u0430\u043d\u043d\u043e\u0435\u00bb"
+POETRY_FAVORITES_BOOK = FAVORITES_BOOK
 CONTAINER_TYPES = {
     "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041e \u043b\u044e\u0431\u0432\u0438\u00bb": "collection",
     "\u041a\u043d\u0438\u0433\u0430 \u00ab\u041f\u043e\u0442\u0435\u0440\u044f\u043d\u043d\u044b\u0435 \u0433\u043e\u0434\u044b\u00bb": "collection",
