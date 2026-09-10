@@ -162,9 +162,7 @@ def book_markup(groups: dict, kind: str) -> str:
         for number, work in enumerate(works, 1):
             reader_path = f"reader/{kind}/{slugify(book)}-{slugify(work['title'])}-{number}.html?hall={kind}&book={slugify(book)}"
             link_title = poetry_toc_title(work["title"]) if kind == "poetry" else work["title"]
-            publication = publication_label(work)
-            metadata = f'<span class="work-publication">{html.escape(publication)}</span>' if publication else ""
-            links.append(f'<li><a href="{reader_path}">{html.escape(link_title)}</a>{metadata}</li>')
+            links.append(f'<li><a href="{reader_path}">{html.escape(link_title)}</a></li>')
         explicit_type = works[0].get("container_type")
         display_name = display_book_name(book, kind, explicit_type)
         list_tag = "ul" if (explicit_type or COLLECTION_TYPES.get(book)) == "book" else "ol"
@@ -305,10 +303,11 @@ def reader_page(work: dict, kind: str, book: str, previous_path: str | None = No
 </header>'''
     controls = f'<nav class="reader-controls" aria-label="Навигация по книге">{previous}<a class="reader-control reader-home" href="../../index.html">К списку книг</a>{following}</nav>'
     publication = publication_label(work)
-    publication_markup = f'<p class="reader-publication">{html.escape(publication)}</p>' if publication else ""
+    publication_markup = ""
+    publication_footer = f'<p>{html.escape(publication)}</p>' if publication else ""
     return f'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(work["title"])} — {BRAND}</title><link rel="stylesheet" href="../../css/site.css?v=poetry-spacing-2"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head>
-<body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1>{publication_markup}<div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p></footer>{controls}</main><script src="../../js/site.js"></script></body></html>'''
+<body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1>{publication_markup}<div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p>{publication_footer}</footer>{controls}</main><script src="../../js/site.js"></script></body></html>'''
 
 
 def add_reader_decorations(page: str, work: dict) -> str:
