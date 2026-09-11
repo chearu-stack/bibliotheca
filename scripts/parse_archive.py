@@ -129,30 +129,107 @@ def collect_sectioned_works(domain: str, soup: BeautifulSoup, favorites_book: st
     return collected
 
 
+def collect_paginated_author_soups(domain: str, author_url: str):
+    soups = []
+    page_url = author_url
+    seen_pages = set()
+
+    while page_url and page_url not in seen_pages:
+        seen_pages.add(page_url)
+        _, page_soup = fetch(page_url)
+        soups.append(page_soup)
+
+        next_page = None
+        for link in page_soup.find_all("a", href=True):
+            href = link["href"]
+            if "book=" in href or not re.search(r"(?:\?|&)s=\d+", href):
+                continue
+
+            candidate = absolute_url(domain, href)
+            if candidate not in seen_pages:
+                next_page = candidate
+                break
+
+        page_url = next_page
+
+    return soups
+
+
 def parse_portal_archive(author_url: str, output_dir: Path, json_name: str, book_limit=None, work_limit=None):
     domain = "https://stihi.ru" if "stihi.ru" in author_url else "https://proza.ru"
     print(f"[*] Author page: {author_url}", flush=True)
-    author_urls = [author_url]
+
     if "stihi.ru" in author_url:
-        author_urls = [f"{author_url}?s={offset}" for offset in (0, 50, 100)]
-    author_soups = [fetch(url)[1] for url in author_urls]
-    favorites_book = FAVORITES_BOOK if "proza.ru" in author_url else POETRY_FAVORITES_BOOK
-    queue = []
-    assigned = set()
-    for page_soup in author_soups:
-        for item in collect_sectioned_works(domain, page_soup, favorites_book):
-            if item[0] not in assigned:
-                assigned.add(item[0])
-                queue.append(item)
-    ordered_books = []
-    for _, book, _ in queue:
-        if book != favorites_book and book not in ordered_books:
-            ordered_books.append(book)
-    if book_limit:
-        selected_books = set(ordered_books[:book_limit])
-        queue = [item for item in queue if item[1] in selected_books]
-        ordered_books = ordered_books[:book_limit]
-    print(f"[*] Books selected: {len(ordered_books)}", flush=True)
+        favorites_book = POETRY_FAVORITES_BOOK
+        author_soups = collect_paginated_author_soups(domain, author_url)
+
+        books = []
+        seen_books = set()
+        for page_soup in author_soups:
+            for book, book_url in collect_book_links(domain, page_soup):
+                if book_url not in seen_books:
+                    seen_books.add(book_url)
+                    books.append((book, book_url))
+
+        if book_limit:
+            books = books[:book_limit]
+
+        queue = []
+        assigned = set()
+
+        for book, book_url in books:
+            print(f"[*] Reading book: {book}", flush=True)
+            _, book_soup = fetch(book_url, 12)
+            for url, _, label in collect_sectioned_works(
+                domain, book_soup, favorites_book
+            ):
+                if url not in assigned:
+                    assigned.add(url)
+                    queue.append((url, book, label))
+
+        if not book_limit or not books:
+            for page_soup in author_soups:
+                for anchor in page_soup.find_all("a", class_="poemlink"):
+                    url = absolute_url(domain, anchor["href"])
+                    if url not in assigned:
+                        assigned.add(url)
+                        queue.append(
+                            (url, favorites_book, anchor.get_text(" ", strip=True))
+                        )
+
+        ordered_books = []
+        for _, book, _ in queue:
+            if book != favorites_book and book not in ordered_books:
+                ordered_books.append(book)
+
+        print(f"[*] Books selected: {len(ordered_books)}", flush=True)
+
+    else:
+        favorites_book = FAVORITES_BOOK
+        author_soups = [fetch(author_url)[1]]
+        queue = []
+        assigned = set()
+
+        for page_soup in author_soups:
+            for item in collect_sectioned_works(
+                domain, page_soup, favorites_book
+            ):
+                if item[0] not in assigned:
+                    assigned.add(item[0])
+                    queue.append(item)
+
+        ordered_books = []
+        for _, book, _ in queue:
+            if book != favorites_book and book not in ordered_books:
+                ordered_books.append(book)
+
+        if book_limit:
+            selected_books = set(ordered_books[:book_limit])
+            queue = [item for item in queue if item[1] in selected_books]
+            ordered_books = ordered_books[:book_limit]
+
+        print(f"[*] Books selected: {len(ordered_books)}", flush=True)
+
     if work_limit:
         queue = queue[:work_limit]
     print(f"[*] Works queued: {len(queue)}", flush=True)
