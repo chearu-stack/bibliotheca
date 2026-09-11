@@ -57,7 +57,34 @@ DIRECTOR_SYSTEM_PROMPT = (
     "промпт на английском (до 15 слов) для генерации лаконичного наброска "
     "карандашом/тушью."
 )
+TRANSLATOR_SYSTEM_PROMPT = (
+    "Ты — арт-директор и эксперт по классической печатной графике. "
+    "Принимай описание сцены или идею на русском языке и превращай её в строго структурированный "
+    "английский prompt для генерации изображения. "
+    "Описывай только физические материалы: charcoal drawing, graphite pencil sketch, cross-hatching, "
+    "heavy paper texture, dark monochromatic palette, contrast shading. "
+    "Запрещено использовать слова: anime, digital art, smooth, glossy, 3d render, colorful. "
+    "Возвращай только итоговый английский текст промпта без вводных фраз и комментариев."
+)
 
+# Keep the API instructions in plain English. The previous copy contained
+# mojibake from a broken encoding conversion, so DeepSeek could not reliably
+# follow the language requirement and sometimes returned Russian descriptions.
+DIRECTOR_SYSTEM_PROMPT = (
+    "You are a book art director. Read the text and identify one or two concrete "
+    "objects or a distant scene. Return ONLY a concise English image prompt, no "
+    "introductory text, no analysis, and no Russian words. Do not describe faces, "
+    "portraits, or recognizable people. Prefer objects, landscapes, interiors, "
+    "weather, tools, roads, and other physical details. Maximum 15 words."
+)
+TRANSLATOR_SYSTEM_PROMPT = (
+    "You are an art director for classical printmaking. Convert the Russian scene "
+    "description into ONE concise English image prompt. Return ONLY English prompt "
+    "text, without labels, explanations, or Russian words. Describe physical objects "
+    "and materials only. Include charcoal drawing, graphite pencil sketch, "
+    "cross-hatching, heavy paper texture, dark monochromatic palette, and contrast "
+    "shading. Never use anime, digital art, smooth, glossy, 3d render, or colorful."
+)
 
 _PERSON_WORDS = (
     "portrait", "face", "man", "woman", "girl", "boy", "person", "people",
@@ -124,6 +151,7 @@ def generate_art_prompt(text_content: str, _retry: bool = False) -> str:
         response.raise_for_status()
     try:
         result = response.json()["choices"][0]["message"]["content"] or ""
+        result = " ".join(result.split())
     except (KeyError, IndexError, TypeError, ValueError):
         print(f"Ошибка DeepSeek: {response.status_code} - {response.text}")
         raise RuntimeError("DeepSeek returned an invalid response payload.")
@@ -132,6 +160,11 @@ def generate_art_prompt(text_content: str, _retry: bool = False) -> str:
     if not scene:
         print(f"Ошибка DeepSeek: {response.status_code} - {response.text}")
         raise RuntimeError("DeepSeek returned an empty art prompt.")
+    if re.search(r"[А-Яа-яЁё]", scene):
+        if not _retry:
+            print("DeepSeek вернул русский промпт; повторяю запрос с требованием English-only...")
+            return generate_art_prompt(text_content, _retry=True)
+        raise RuntimeError("DeepSeek returned a non-English art prompt; Pollinations request blocked.")
     if _looks_like_a_person(scene):
         if not _retry:
             print(f"DeepSeek предложил портрет ('{scene}'), переспрашиваю без людей...")
@@ -141,6 +174,59 @@ def generate_art_prompt(text_content: str, _retry: bool = False) -> str:
             "пропускаю эту работу, чтобы не отправлять портрет в Pollinations."
         )
     return scene
+
+
+def translate_art_direction(russian_text: str, _retry: bool = False) -> str:
+    """Translate a Russian visual direction into a constrained English prompt."""
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is not set in the local .env file.")
+    if MODEL not in ALLOWED_MODELS:
+        raise RuntimeError(f"Unsupported DeepSeek model: {MODEL}")
+    truncated_text = str(russian_text).strip()[:1200]
+    if not truncated_text:
+        raise ValueError("Russian description must not be empty.")
+    system_prompt = TRANSLATOR_SYSTEM_PROMPT
+    if _retry:
+        system_prompt += " FINAL CHECK: output must contain English letters only; never repeat or translate the Russian input."
+    response = DIRECT_SESSION.post(
+        API_URL,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": MODEL,
+            "temperature": 0.2,
+            "max_tokens": 1000,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": truncated_text},
+            ],
+        },
+        proxies={"http": None, "https": None},
+        timeout=90,
+    )
+    if response.status_code != 200:
+        print(f"Ошибка DeepSeek: {response.status_code} - {response.text}")
+        response.raise_for_status()
+    try:
+        result = response.json()["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError, ValueError):
+        print(f"Ошибка DeepSeek: {response.status_code} - {response.text}")
+        raise RuntimeError("DeepSeek returned an invalid response payload.")
+    prompt = re.sub(r"\\s+", " ", result).strip(" \"'`\n")
+    prompt = " ".join(prompt.split())
+    if not prompt:
+        print(f"Ошибка DeepSeek: {response.status_code} - {response.text}")
+        raise RuntimeError("DeepSeek returned an empty translation prompt.")
+    if re.search(r"[А-Яа-яЁё]", prompt):
+        if not _retry:
+            print("DeepSeek вернул русский промпт; повторяю перевод с жёстким English-only контролем...")
+            return translate_art_direction(russian_text, _retry=True)
+        print(f"Ошибка DeepSeek: ответ не на английском - {prompt}")
+        raise RuntimeError("DeepSeek returned a non-English translation prompt.")
+    forbidden = ("anime", "digital art", "smooth", "glossy", "3d render", "colorful")
+    if any(term in prompt.casefold() for term in forbidden):
+        raise RuntimeError("DeepSeek returned a prompt containing a forbidden style term.")
+    return prompt
 
 
 def build_prompt(work: dict) -> str:
@@ -202,6 +288,12 @@ def fetch_image(prompt: str, output_path: Path, timeout: int = 90) -> tuple[str,
                     time.sleep(30)
                     continue
                 raise PollinationsError("HTTP 429 after 3 attempts")
+            if response.status_code >= 500:
+                if attempt < 3:
+                    print(f"Pollinations {response.status_code}: повтор через 10 секунд...")
+                    time.sleep(10)
+                    continue
+                raise PollinationsError(f"HTTP {response.status_code} after 3 attempts")
             response.raise_for_status()
             if len(response.content) < 10000:
                 print("Файл слишком мал, это не картинка")
@@ -216,6 +308,10 @@ def fetch_image(prompt: str, output_path: Path, timeout: int = 90) -> tuple[str,
                 continue
             raise PollinationsError("timeout after 3 attempts") from None
         except requests.exceptions.RequestException as error:
+            if attempt < 3:
+                print(f"Pollinations ошибка сети: повтор через 10 секунд...")
+                time.sleep(10)
+                continue
             raise PollinationsError(str(error)) from error
     raise PollinationsError("request failed after 3 attempts")
 

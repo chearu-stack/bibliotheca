@@ -3,3 +3,5 @@
 !.env.example
 scripts/__pycache__/
 __pycache__/
+tools/
+.studio-repo/
