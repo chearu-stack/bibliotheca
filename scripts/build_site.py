@@ -2,6 +2,7 @@ import html
 import json
 import re
 import shutil
+import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -166,7 +167,7 @@ def book_markup(groups: dict, kind: str) -> str:
         explicit_type = works[0].get("container_type")
         display_name = display_book_name(book, kind, explicit_type)
         list_tag = "ul" if (explicit_type or COLLECTION_TYPES.get(book)) == "book" else "ol"
-        cards.append(f'''<details class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
+        cards.append(f'''<details id="{html.escape(slugify(book), quote=True)}" class="book-card" data-book="{html.escape(slugify(book), quote=True)}">
   <summary class="book-summary">
     <span class="book-name">{html.escape(display_name)}</span>
     <span class="book-meta">{work_count_label(len(works))}</span>
@@ -199,6 +200,13 @@ def navigation(active: str = "hall", prefix: str = "") -> str:
       <a href="{prefix}index.html"{home_class}>Главная</a>
       <a href="{prefix}about.html"{about_class}>{ABOUT}</a>
     </nav>'''
+
+
+def site_footer() -> str:
+    return '''<footer class="site-footer">
+  <p class="site-footer-stamp">© 2026 Евгений Чернышев · Литературный архив</p>
+  <p class="site-footer-stamp">Спроектировано в chearu-stack</p>
+</footer>'''
 
 
 def page_head(title: str, content: str, active: str = "hall") -> str:
@@ -267,6 +275,7 @@ def write_assets():
 :root{--ink:#121316;--surface:#1b1d22;--paper:#e6e4df;--muted:#a9a69e;--brass:#c8a261;--line:rgba(230,228,223,.17);--serif:"Cormorant Garamond",Georgia,serif;--sans:"Montserrat",Arial,sans-serif}*{box-sizing:border-box}body{background:var(--ink);color:var(--paper);font:1.15rem/1.55 var(--serif);margin:0}a{color:inherit;text-decoration:none}.site-header{border-bottom:1px solid var(--line);margin:auto;max-width:76rem;padding:1.25rem clamp(1rem,5vw,4rem)}.top-nav{display:flex;flex-wrap:wrap;gap:1.25rem}.top-nav a,.reader-back,.reader-book,.book-meta,.site-footer,.tab-btn{font:500 .7rem/1.4 var(--sans);letter-spacing:.1em;text-transform:uppercase}.top-nav a{color:var(--muted)}.top-nav a:hover,.top-nav a.active{color:var(--brass)}.hero-section{align-items:start;display:grid;grid-template-columns:1fr 300px;gap:4rem;margin:3rem 0 5rem}.hero-content{max-width:600px;text-align:left}.hero-title{font-size:clamp(3rem,9vw,7rem);font-weight:500;line-height:1;letter-spacing:-.05em;margin:0 0 1.5rem}.hero-subtitle{color:var(--muted);font-size:clamp(1.25rem,2.5vw,1.7rem);margin:0}.hero-author-frame{flex-shrink:0}.author-portrait{width:300px;height:400px;object-fit:cover;border-radius:0;border:1px solid rgba(212,175,55,.25);box-shadow:0 20px 40px rgba(0,0,0,.7);display:block}.main-content{margin:auto;max-width:76rem;padding:0 clamp(1rem,5vw,4rem) 5rem}.hall-tabs{border-bottom:1px solid var(--line);display:flex;gap:1rem;margin-bottom:1.5rem}.tab-btn{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;padding:.9rem 0}.tab-btn.active{border-color:var(--brass);color:var(--brass)}.hall-section{display:block}.hall-section[style*="none"]{display:none}.book-card{background:var(--surface);border:1px solid var(--line);margin:.8rem 0}.book-summary{align-items:center;cursor:pointer;display:flex;gap:1rem;justify-content:space-between;list-style:none;padding:1.1rem 1.25rem}.book-summary::-webkit-details-marker{display:none}.book-name{font-size:1.45rem}.book-meta{color:var(--brass);white-space:nowrap}.work-list{border-top:1px solid var(--line);display:grid;gap:.25rem 1.5rem;grid-template-columns:1fr;margin:0;padding:.75rem 1.25rem .9rem 2.75rem}.work-list li{padding:.35rem 0}.work-list a:hover{color:var(--brass)}.site-footer{border-top:1px solid var(--brass);color:var(--muted);margin:2rem auto 0;max-width:76rem;padding:1.5rem clamp(1rem,5vw,4rem)}.site-footer p{margin:0}.reader-header{align-items:center;display:flex;gap:1.5rem;justify-content:space-between}.reader-content{margin:auto;max-width:52rem;padding:clamp(3rem,8vw,7rem) 1rem}.reader-content h1{font-size:clamp(2.8rem,7vw,5.5rem);line-height:1}.reader-book{color:var(--brass)}.reader-text{font-size:1.3rem;margin-top:3rem}.poem-text{line-height:1.8}.reader-text p{margin:0 0 1.5rem}.publication-footer{border-top:1px solid var(--brass);color:var(--muted);font:.72rem/1.6 var(--sans);margin-top:4rem;padding-top:1rem}.button{border:1px solid var(--brass);display:inline-block;margin-top:2rem;padding:.8rem 1rem}@media(min-width:48rem){.work-list{grid-template-columns:repeat(2,minmax(0,1fr))}.reader-content{padding-left:2rem;padding-right:2rem}}@media(max-width:768px){.hero-section{grid-template-columns:1fr;gap:2rem;text-align:center}.hero-content{text-align:center}.author-portrait{width:160px;height:200px;margin:0 auto}}
 ''', encoding="utf-8")
     with (SITE / "css" / "site.css").open("a", encoding="utf-8") as css:
+        css.write(":root{--footer-stamp-color:rgba(255,255,255,.45)}.site-footer{text-align:center}.site-footer-stamp{color:var(--footer-stamp-color);font:500 .68rem/1.5 var(--sans);letter-spacing:.08em;margin:0;text-transform:none}.site-footer-stamp+.site-footer-stamp{margin-top:.35rem}")
         css.write("@media(max-width:768px){.book-summary{gap:8px}.book-name{overflow-wrap:break-word;word-break:break-word}.book-meta{white-space:normal}}")
         css.write(".reader-controls{display:flex;flex-wrap:wrap;gap:.75rem;justify-content:space-between;margin-top:2rem}.reader-control{border:1px solid var(--brass);font:500 .7rem/1.4 var(--sans);letter-spacing:.06em;padding:.75rem 1rem}.reader-control.is-disabled{border-color:var(--line);color:var(--muted)}.reader-home{background:var(--surface)}.reader-vignette{margin:3rem auto 2rem;max-width:15rem}.reader-vignette img{display:block;height:auto;max-width:100%;width:100%}.work-illustration{display:block;max-width:100%;height:auto;margin:2rem auto;border-radius:4px;opacity:.9}@media(min-width:48rem){.reader-vignette{max-width:20rem}}")
         css.write(".poem-text{line-height:1.4;white-space:pre-line}.poem-text>.poem-stanza{display:block;line-height:1.4;margin:0;padding:0 0 1.6em}.poem-text>.poem-stanza+.poem-stanza{margin-top:0}.poem-text>.poem-stanza:last-child{padding-bottom:0}")
@@ -283,7 +292,7 @@ def write_assets():
 ''', encoding="utf-8")
 
 
-def reader_page(work: dict, kind: str, book: str, previous_path: str | None = None, next_path: str | None = None) -> str:
+def reader_page(work: dict, kind: str, book: str, previous_path: str | None = None, next_path: str | None = None, book_key: str | None = None) -> str:
     if kind == "poetry":
         intro_blocks, stanzas = poetry_intro_and_stanzas(work["text"], work.get("intro_blocks"))
         stanza_markup = []
@@ -297,17 +306,18 @@ def reader_page(work: dict, kind: str, book: str, previous_path: str | None = No
         body = "".join(f'<p>{html.escape(part).replace(chr(10), "<br>")}</p>' for part in paragraphs)
     previous = f'<a class="reader-control" href="{previous_path}">← Назад</a>' if previous_path else '<span class="reader-control is-disabled">← Назад</span>'
     following = f'<a class="reader-control" href="{next_path}">Вперёд →</a>' if next_path else '<span class="reader-control is-disabled">Вперёд →</span>'
+    book_list_path = f"../../index.html?hall={kind}#{urllib.parse.quote(slugify(book_key or book))}"
     header = f'''<header class="site-header reader-header">
   {navigation("reader", "../../")}
-  <a class="reader-back" href="../../index.html">К списку книг</a>
+  <a class="reader-back" href="{book_list_path}">К списку книг</a>
 </header>'''
-    controls = f'<nav class="reader-controls" aria-label="Навигация по книге">{previous}<a class="reader-control reader-home" href="../../index.html">К списку книг</a>{following}</nav>'
+    controls = f'<nav class="reader-controls" aria-label="Навигация по книге">{previous}<a class="reader-control reader-home" href="{book_list_path}">К списку книг</a>{following}</nav>'
     publication = publication_label(work)
     publication_markup = ""
     publication_footer = f'<p>{html.escape(publication)}</p>' if publication else ""
     return f'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{html.escape(work["title"])} — {BRAND}</title><link rel="stylesheet" href="../../css/site.css?v=poetry-spacing-2"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head>
-<body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1>{publication_markup}<div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p>{publication_footer}</footer>{controls}</main><script src="../../js/site.js"></script></body></html>'''
+<body>{header}<main class="reader-content"><p class="reader-book">{html.escape(book)}</p><h1>{html.escape(work["title"])}</h1>{publication_markup}<div class="reader-text">{body}</div><footer class="publication-footer"><p>{html.escape(work["copyright"])}</p><p>{html.escape(work["certificate"])}</p>{publication_footer}</footer>{controls}</main>{site_footer()}<script src="../../js/site.js"></script></body></html>'''
 
 
 def add_reader_decorations(page: str, work: dict) -> str:
@@ -324,7 +334,7 @@ def build():
         shutil.rmtree(SITE)
     write_assets()
     site_js = SITE / "js" / "site.js"
-    site_js.write_text(site_js.read_text(encoding="utf-8") + 'const contextParams = new URLSearchParams(window.location.search); const requestedHall = contextParams.get("hall"); const requestedBook = contextParams.get("book"); showHall(requestedHall === "poetry" ? "poetry" : "prose"); if (requestedBook) { const card = Array.from(document.querySelectorAll("details.book-card")).find(item => item.dataset.book === requestedBook); if (card) card.open = true; }\n', encoding="utf-8")
+    site_js.write_text(site_js.read_text(encoding="utf-8") + 'const contextParams = new URLSearchParams(window.location.search); const requestedHall = contextParams.get("hall"); showHall(requestedHall === "poetry" ? "poetry" : "prose"); const requestedBook = decodeURIComponent(location.hash.slice(1)); if (requestedBook) { const card = document.getElementById(requestedBook); if (card instanceof HTMLDetailsElement) { card.open = true; card.scrollIntoView({ block: "start" }); } }\n', encoding="utf-8")
     site_js.write_text(site_js.read_text(encoding="utf-8") + 'const searchInput = document.getElementById("site-search-input"); const searchResults = document.getElementById("site-search-results"); if (searchInput && searchResults) { fetch("search.json").then(response => response.json()).then(items => { searchInput.addEventListener("input", () => { const query = searchInput.value.trim().toLocaleLowerCase(); searchResults.replaceChildren(); if (!query) return; items.filter(item => (item.title + " " + item.book + " " + item.text).toLocaleLowerCase().includes(query)).slice(0, 30).forEach(item => { const row = document.createElement("div"); row.className = "search-result"; const link = document.createElement("a"); link.href = item.url; link.textContent = item.title; const meta = document.createElement("span"); meta.className = "search-result-meta"; meta.textContent = (item.kind === "poetry" ? "Поэзия" : "Проза") + " · " + item.book; row.append(link, meta); searchResults.append(row); }); }); }); }\n', encoding="utf-8")
     site_js.write_text(site_js.read_text(encoding="utf-8") + 'const localSearchInput = document.getElementById("site-search-input"); const localSearchResults = document.getElementById("site-search-results"); if (localSearchInput && localSearchResults && window.LIBRARY_SEARCH_INDEX) { localSearchInput.addEventListener("input", () => { const query = localSearchInput.value.trim().toLocaleLowerCase(); localSearchResults.replaceChildren(); if (!query) return; window.LIBRARY_SEARCH_INDEX.filter(item => (item.title + " " + item.book + " " + item.text).toLocaleLowerCase().includes(query)).slice(0, 10).forEach(item => { const row = document.createElement("div"); row.className = "search-result"; const link = document.createElement("a"); link.href = item.url; link.textContent = item.title; const meta = document.createElement("span"); meta.className = "search-result-meta"; meta.textContent = (item.kind === "poetry" ? "Поэзия" : "Проза") + " · " + item.book; row.append(link, meta); localSearchResults.append(row); }); }); }\n', encoding="utf-8")
     poetry = load_archive("poetry")
@@ -364,7 +374,7 @@ def build():
   <section id="prose-hall" class="hall-section">{book_markup(prose_groups, "prose")}</section>
   <section id="poetry-hall" class="hall-section" style="display: none;">{book_markup(poetry_groups, "poetry")}</section>
 </main>'''
-    footer = '<footer class="site-footer"><p>2026 Евгений Чернышев · Литературный архив</p></footer>'
+    footer = site_footer()
     index = f'''<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{BRAND}</title><link rel="stylesheet" href="css/site.css"><link rel="icon" type="image/svg+xml" href="favicon.svg"></head><body>{header}{main}{footer}<script src="js/site.js"></script></body></html>'''
     index = index.replace('<script src="js/site.js"></script>', '<script src="js/search-data.js"></script><script src="js/site.js"></script>')
     (SITE / "index.html").write_text(index, encoding="utf-8")
@@ -394,8 +404,7 @@ def build():
                 if number < len(book_works):
                     following = book_works[number]
                     next_path = f"{slugify(book)}-{slugify(following['title'])}-{number + 1}.html"
-                page = reader_page(work, kind, display_book_name(book, kind, work.get("container_type")), previous_path, next_path)
-                page = page.replace('href="../../index.html"', f'href="../../index.html?hall={kind}&book={slugify(book)}"')
+                page = reader_page(work, kind, display_book_name(book, kind, work.get("container_type")), previous_path, next_path, book)
                 path.write_text(add_reader_decorations(page, work), encoding="utf-8")
     print(f"Built site: {len(poetry)} poetry works, {len(prose)} prose works.")
 
